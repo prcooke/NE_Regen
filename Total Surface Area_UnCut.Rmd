@@ -1,0 +1,962 @@
+---
+title: "Total Surface Area Uncut"
+author: "Patrick"
+date: "2023-11-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(data.table)
+library(dplyr)
+```
+# 1) Surface Area Calculation Function
+
+I asked bard to write me a function and provided it:
+
+I ran an experiment in which I gathered data on many different subjects every two week for 24 weeks. Prior to that I gathered two weeks of baseline data: week -2 and week 0. I have a separate folder for each subject containing their raw data. Each of these folders contain an individual csv file for each corresponding week, labelled W-2, W0, W2, W4, W6, W8, W10, W12, W14, W16, W18, W20, W22, W24. Some subjects are missing certain weeks and therefore do not have a corresponding csv file. Each file contains 5 columns labeled: Area, Unit, Category, Time, ID. The header begins on row 4.
+
+I have a data frame in R for each subject with the columns: animal, week, treatment, total.sa, new.sa, survived.sa, branched.sa, pre.sa.
+
+I would like you to generate a function in R that loads the csv file for each subject’s weekly data, calculates the sum of the ‘Area’ column and then adds the following information to the subject’s data frame: week, total.sa. week is indicated in the name of the name of the csv file: W-2 should be entered as -2, W0 as 0, W2 as 2, etc. total.sa should be filled with the calculated sum. If no csv file exists, total.sa should be filled with NA.
+
+The working directory will be set to subject’s folder and contain each csv file
+
+Bard returned a function that retrieves total surface area from each CSV file within an animal's folder...well after som debugging:
+
+```{r eval = FALSE}
+# Input file path to subject folder
+SA_calc <- function(subject_folder) {
+    # Get the list of all CSV files in the subject's folder
+    csv_files <- list.files(subject_folder)
+
+    # Create a sequence of week numbers
+    week_numbers <- seq(-2, 24, by = 2)
+    
+    # Iterate over the week numbers and add the data to the subject's data frame
+    for (week_number in week_numbers) {
+    # Check if the CSV file for the week exists
+        csv_file <- paste0("W", week_number, ".csv")
+        if (file.exists(file.path(subject_folder, csv_file))) {
+            # If the CSV file exists, load it
+            weekly_data <- read.csv(file.path(subject_folder, csv_file), skip = 3)
+            
+            # Calculate the sum of the 'Area' column
+            total_sa <- sum(weekly_data$Area)
+            
+        } else {
+        # If the CSV file does not exist, fill in the total.sa value with NA
+            total_sa <- NA
+        }
+        
+        # Add the week and total.sa values to the subject's data frame
+        subject_data <- rbind(subject_data, data.frame(week = week_number, total.sa = total_sa))
+    }
+    
+    # Iterate over the week numbers and calculate the normalized surface area
+    for (i in 1:14) {
+        subject_data$norm.total.sa <- subject_data$total.sa / subject_data$total.sa[2]
+    }
+    
+    # Return the subject's data frame
+    return(subject_data)
+}
+```
+
+Lets see how it works:
+
+```{r}
+subject_data <- data.frame()
+subject_folder <- "./Total Surface Area/9022"
+subject_data <- SA_calc(subject_folder)
+subject_data
+```
+
+OK that's great, I can run that on every animal and merge it into a dataframe for that animal and then a master frame
+
+# 2) Assemble individual animal dataframes for total surface area
+
+## 1) Figure it out
+
+Lets create a data frame for 9022 and add in the calculation from above
+
+```{r}
+# Creates an empty data frame
+A9022 <- data.frame()
+# Adds 14 columns to facilitate individually adding data later
+A9022[1:14, ] <- NA
+A9022
+```
+Info for columns that are consistent between weeks
+```{r}
+# Fills animal column
+animal <- rep("9022", times = 14)
+animal
+# Fills in sex column
+sex <- rep("F", times = 14)
+sex
+# Fills week column
+week <- seq(-2, 24, by = 2)
+week
+# Fills functional column identifying if the animal qualified for functional assessment
+functional <- rep(TRUE, times = 14)
+functional
+# Will fill treatment column with treatment
+treatment <- rep("treatment", times = 14)
+treatment
+# Will fill treatment column with control
+control <- rep("control", times = 14)
+control
+# Fills group.id column identifying which cohort the animal was in.
+group.id <- rep(1, times = 14)
+group.id
+```
+Fill those consistent columns
+
+```{r}
+A9022$animal <- as.factor(animal)
+A9022$sex <- as.factor(sex)
+A9022$group <- as.factor(group.id)
+A9022$functional <- functional
+A9022$week <- week
+# Input control or treatment accordingly
+A9022$treatment <- as.factor(treatment)
+A9022
+```
+Merges in the SA_calc results to animal's data frame
+
+```{r}
+A9022 <- full_join(A9022, subject_data, by = "week", copy = TRUE)
+A9022
+```
+
+# 3) Fill total.sa column for each animal
+## 9022
+```{r}
+subject_data <- data.frame()
+# Input the correct file path
+subject_folder <- "./Total Surface Area/9022"
+subject_data <- SA_calc(subject_folder)
+# Change object name
+A9022 <- data.frame()
+# Change object name
+A9022[1:14, ] <- NA
+# Assign animal number
+animal <- rep("9022", times = 14)
+# Assign sex
+sex <- rep("M", times = 14)
+# Assign group
+group.id <- rep(1, times = 14)
+# Function, TRUE or FALSE?
+functional <- rep(TRUE, times = 14)
+week <- seq(-2, 24, by = 2)
+treatment <- rep("treatment", times = 14)
+control <- rep("control", times = 14)
+# Change object name
+A9022$animal <- as.factor(animal)
+# Change object name
+A9022$sex <- as.factor(sex)
+# Change object name
+A9022$group.id <- as.factor(group.id)
+# change object name
+A9022$functional <- functional
+# Change object name
+A9022$week <- week
+# Change object name and input treatment/control
+A9022$treatment <- as.factor(treatment)
+# Change object name TWICE
+A9022 <- full_join(A9022, subject_data, by = "week", copy = TRUE)
+# Change object name
+A9022
+```
+## 9023
+
+```{r}
+subject_data <- data.frame()
+# Input the correct file path
+subject_folder <- "./Total Surface Area/9023"
+subject_data <- SA_calc(subject_folder)
+# Change object name
+A9023 <- data.frame()
+# Change object name
+A9023[1:14, ] <- NA
+# Assign animal number
+animal <- rep("9023", times = 14)
+# Assign sex
+sex <- rep("F", times = 14)
+# Assign group
+group.id <- rep(1, times = 14)
+# Function, TRUE or FALSE?
+functional <- rep(TRUE, times = 14)
+week <- seq(-2, 24, by = 2)
+treatment <- rep("treatment", times = 14)
+control <- rep("control", times = 14)
+# Change object name
+A9023$animal <- as.factor(animal)
+# Change object name
+A9023$sex <- as.factor(sex)
+# Change object name
+A9023$group.id <- as.factor(group.id)
+# change object name
+A9023$functional <- functional
+# Change object name
+A9023$week <- week
+# Change object name and input treatment/control
+A9023$treatment <- as.factor(control)
+# Change object name TWICE
+A9023 <- full_join(A9023, subject_data, by = "week", copy = TRUE)
+# Change object name
+A9023
+```
+
+## 9025
+```{r}
+subject_data <- data.frame()
+# Input the correct file path
+subject_folder <- "./Total Surface Area/9025"
+subject_data <- SA_calc(subject_folder)
+# Change object name
+A9025 <- data.frame()
+# Change object name
+A9025[1:14, ] <- NA
+# Modify animal according to subject number
+animal <- rep("9025", times = 14)
+# Assign sex
+sex <- rep("F", times = 14)
+# Assign group
+group.id <- rep(1, times = 14)
+# Function, TRUE or FALSE?
+functional <- rep(TRUE, times = 14)
+week <- seq(-2, 24, by = 2)
+treatment <- rep("treatment", times = 14)
+control <- rep("control", times = 14)
+# Change object name
+A9025$animal <- as.factor(animal)
+# Change object name
+A9025$sex <- as.factor(sex)
+# Change object name
+A9025$group.id <- as.factor(group.id)
+# Change object name
+A9025$functional <- functional
+# Change object name
+A9025$week <- week
+# # Change object name and input treatment/control
+A9025$treatment <- as.factor(control)
+# Change object name TWICE
+A9025 <- full_join(A9025, subject_data, by = "week", copy = TRUE)
+# Change object name
+A9025
+```
+## 9026
+
+```{r}
+subject_data <- data.frame()
+# Input the correct file path
+subject_folder <- "./Total Surface Area/9026"
+subject_data <- SA_calc(subject_folder)
+# Change object name
+A9026 <- data.frame()
+# Change object name
+A9026[1:14, ] <- NA
+# Modify animal according to subject number
+animal <- rep("9026", times = 14)
+# Assign sex
+sex <- rep("F", times = 14)
+# Assign group
+group.id <- rep(1, times = 14)
+# Function, TRUE or FALSE?
+functional <- rep(FALSE, times = 14)
+week <- seq(-2, 24, by = 2)
+treatment <- rep("treatment", times = 14)
+control <- rep("control", times = 14)
+# Change object name
+A9026$animal <- as.factor(animal)
+# Change object name
+A9026$sex <- as.factor(sex)
+# Change object name
+A9026$group.id <- as.factor(group.id)
+# Change object name
+A9026$functional <- functional
+# Change object name
+A9026$week <- week
+# # Change object name and input treatment/control
+A9026$treatment <- as.factor(treatment)
+# Change object name TWICE
+A9026 <- full_join(A9026, subject_data, by = "week", copy = TRUE)
+# Change object name
+A9026
+```
+
+## 9031
+```{r}
+subject_data <- data.frame()
+# Input the correct file path
+subject_folder <- "./Total Surface Area/9031"
+subject_data <- SA_calc(subject_folder)
+# Change object name
+A9031 <- data.frame()
+# Change object name
+A9031[1:14, ] <- NA
+# Change animal ID
+animal <- rep("9031", times = 14)
+# Assign sex
+sex <- rep("F", times = 14)
+# Assign group
+group.id <- rep(1, times = 14)
+# Function, TRUE or FALSE?
+functional <- rep(FALSE, times = 14)
+week <- seq(-2, 24, by = 2)
+treatment <- rep("treatment", times = 14)
+control <- rep("control", times = 14)
+# Change object name
+A9031$animal <- as.factor(animal)
+# Change object name
+A9031$sex <- as.factor(sex)
+# Change object name
+A9031$group.id <- as.factor(group.id)
+# Change object name
+A9031$functional <- functional
+# Change object name
+A9031$week <- week
+# Change object name and input treatment/control
+A9031$treatment <- as.factor(treatment)
+# Change object name TWICE
+A9031 <- full_join(A9031, subject_data, by = "week", copy = TRUE)
+# Change object name
+A9031
+```
+## 9035
+
+```{r}
+subject_data <- data.frame()
+# Input the correct file path
+subject_folder <- "./Total Surface Area/9035"
+subject_data <- SA_calc(subject_folder)
+# Change object name
+A9035 <- data.frame()
+# Change object name
+A9035[1:14, ] <- NA
+# Modify animal according to subject number
+animal <- rep("9035", times = 14)
+# Assign sex
+sex <- rep("M", times = 14)
+# Assign group
+group.id <- rep(1, times = 14)
+# Function, TRUE or FALSE?
+functional <- rep(FALSE, times = 14)
+week <- seq(-2, 24, by = 2)
+treatment <- rep("treatment", times = 14)
+control <- rep("control", times = 14)
+# Change object name
+A9035$animal <- as.factor(animal)
+# Change object name
+A9035$sex <- as.factor(sex)
+# Change object name
+A9035$group.id <- as.factor(group.id)
+# Change object name
+A9035$functional <- functional
+# Change object name
+A9035$week <- week
+# Change object name and input treatment/control
+A9035$treatment <- as.factor(control)
+# Change object name TWICE
+A9035 <- full_join(A9035, subject_data, by = "week", copy = TRUE)
+# Change object name
+A9035
+```
+
+## 9058
+
+```{r}
+subject_data <- data.frame()
+# Input the correct file path
+subject_folder <- "./Total Surface Area/9058"
+subject_data <- SA_calc(subject_folder)
+# Change object name
+A9058 <- data.frame()
+# Change object name
+A9058[1:14, ] <- NA
+# Modify animal according to subject number
+animal <- rep("9058", times = 14)
+# Assign sex
+sex <- rep("M", times = 14)
+# Assign group
+group.id <- rep(4, times = 14)
+# Function, TRUE or FALSE?
+functional <- rep(TRUE, times = 14)
+week <- seq(-2, 24, by = 2)
+treatment <- rep("treatment", times = 14)
+control <- rep("control", times = 14)
+# Change object name
+A9058$animal <- as.factor(animal)
+# Change object name
+A9058$sex <- as.factor(sex)
+# Change object name
+A9058$group.id <- as.factor(group.id)
+# Change object name
+A9058$functional <- functional
+# Change object name
+A9058$week <- week
+# Change object name and input treatment/control
+A9058$treatment <- as.factor(treatment)
+# Change object name TWICE
+A9058 <- full_join(A9058, subject_data, by = "week", copy = TRUE)
+# Change object name
+A9058
+```
+
+## 9060
+
+```{r}
+subject_data <- data.frame()
+# Input the correct file path
+subject_folder <- "./Total Surface Area/9060"
+subject_data <- SA_calc(subject_folder)
+# Change object name
+A9060 <- data.frame()
+# Change object name
+A9060[1:14, ] <- NA
+# Modify animal according to subject number
+animal <- rep("9060", times = 14)
+# Assign sex
+sex <- rep("F", times = 14)
+# Assign group
+group.id <- rep(4, times = 14)
+# Function, TRUE or FALSE?
+functional <- rep(FALSE, times = 14)
+week <- seq(-2, 24, by = 2)
+treatment <- rep("treatment", times = 14)
+control <- rep("control", times = 14)
+# Change object name
+A9060$animal <- as.factor(animal)
+# Change object name
+A9060$sex <- as.factor(sex)
+# Change object name
+A9060$group.id <- as.factor(group.id)
+# Change object name
+A9060$functional <- functional
+# Change object name
+A9060$week <- week
+# Change object name and input treatment/control
+A9060$treatment <- as.factor(control)
+# Change object name TWICE
+A9060 <- full_join(A9060, subject_data, by = "week", copy = TRUE)
+# Change object name
+A9060
+```
+
+## 9062
+
+```{r}
+subject_data <- data.frame()
+# Input the correct file path
+subject_folder <- "./Total Surface Area/9062"
+subject_data <- SA_calc(subject_folder)
+# Change object name
+A9062 <- data.frame()
+# Change object name
+A9062[1:14, ] <- NA
+# Modify animal according to subject number
+animal <- rep("9062", times = 14)
+# Assign sex
+sex <- rep("F", times = 14)
+# Assign group
+group.id <- rep(4, times = 14)
+# Functional, TRUE or FALSE?
+functional <- rep(TRUE, times = 14)
+week <- seq(-2, 24, by = 2)
+treatment <- rep("treatment", times = 14)
+control <- rep("control", times = 14)
+# Change object name
+A9062$animal <- as.factor(animal)
+# Change object name
+A9062$sex <- as.factor(sex)
+# Change object name
+A9062$group.id <- as.factor(group.id)
+# Change object name
+A9062$functional <- functional
+# Change object name
+A9062$week <- week
+# Change object name and input treatment/control
+A9062$treatment <- as.factor(treatment)
+# Change object name TWICE
+A9062 <- full_join(A9062, subject_data, by = "week", copy = TRUE)
+# Change object name
+A9062
+```
+
+## 9067
+
+```{r}
+subject_data <- data.frame()
+# Input the correct file path
+subject_folder <- "./Total Surface Area/9067"
+subject_data <- SA_calc(subject_folder)
+# Change object name
+A9067 <- data.frame()
+# Change object name
+A9067[1:14, ] <- NA
+# Modify animal according to subject number
+animal <- rep("9067", times = 14)
+# Assign sex
+sex <- rep("M", times = 14)
+# Assign group
+group.id <- rep(4, times = 14)
+# Functional, TRUE or FALSE?
+functional <- rep(TRUE, times = 14)
+week <- seq(-2, 24, by = 2)
+treatment <- rep("treatment", times = 14)
+control <- rep("control", times = 14)
+# Change object name
+A9067$animal <- as.factor(animal)
+# Change object name
+A9067$sex <- as.factor(sex)
+# Change object name
+A9067$group.id <- as.factor(group.id)
+# Change object name
+A9067$functional <- functional
+# Change object name
+A9067$week <- week
+# Change object name and input treatment/control
+A9067$treatment <- as.factor(control)
+# Change object name TWICE
+A9067 <- full_join(A9067, subject_data, by = "week", copy = TRUE)
+# Change object name
+A9067
+```
+
+## 9068
+
+```{r}
+subject_data <- data.frame()
+# Input the correct file path
+subject_folder <- "./Total Surface Area/9068"
+subject_data <- SA_calc(subject_folder)
+# Change object name
+A9068 <- data.frame()
+# Change object name
+A9068[1:14, ] <- NA
+# Modify animal according to subject number
+animal <- rep("9062", times = 14)
+# Assign sex
+sex <- rep("F", times = 14)
+# Assign group
+group.id <- rep(5, times = 14)
+# Functional, TRUE or FALSE?
+functional <- rep(TRUE, times = 14)
+week <- seq(-2, 24, by = 2)
+treatment <- rep("treatment", times = 14)
+control <- rep("control", times = 14)
+# Change object name
+A9068$animal <- as.factor(animal)
+# Change object name
+A9068$sex <- as.factor(sex)
+# Change object name
+A9068$group.id <- as.factor(group.id)
+# Change object name
+A9068$functional <- functional
+# Change object name
+A9068$week <- week
+# Change object name and input treatment/control
+A9068$treatment <- as.factor(treatment)
+# Change object name TWICE
+A9068 <- full_join(A9068, subject_data, by = "week", copy = TRUE)
+# Change object name
+A9068
+```
+
+## 9071
+
+```{r}
+subject_data <- data.frame()
+# Input the correct file path
+subject_folder <- "./Total Surface Area/9071"
+subject_data <- SA_calc(subject_folder)
+# Change object name
+A9071 <- data.frame()
+# Change object name
+A9071[1:14, ] <- NA
+# Modify animal according to subject number
+animal <- rep("9071", times = 14)
+# Assign sex
+sex <- rep("F", times = 14)
+# Assign group
+group.id <- rep(5, times = 14)
+# Functional, TRUE or FALSE?
+functional <- rep(FALSE, times = 14)
+week <- seq(-2, 24, by = 2)
+treatment <- rep("treatment", times = 14)
+control <- rep("control", times = 14)
+# Change object name
+A9071$animal <- as.factor(animal)
+# Change object name
+A9071$sex <- as.factor(sex)
+# Change object name
+A9071$group.id <- as.factor(group.id)
+# Change object name
+A9071$functional <- functional
+# Change object name
+A9071$week <- week
+# Change object name and input treatment/control
+A9071$treatment <- as.factor(control)
+# Change object name TWICE
+A9071 <- full_join(A9071, subject_data, by = "week", copy = TRUE)
+# Change object name
+A9071
+```
+
+## 9072
+
+```{r}
+subject_data <- data.frame()
+# Input the correct file path
+subject_folder <- "./Total Surface Area/9072"
+subject_data <- SA_calc(subject_folder)
+# Change object name
+A9072 <- data.frame()
+# Change object name
+A9072[1:14, ] <- NA
+# Modify animal according to subject number
+animal <- rep("9072", times = 14)
+# Assign sex
+sex <- rep("M", times = 14)
+# Assign group
+group.id <- rep(5, times = 14)
+# Functional, TRUE or FALSE?
+functional <- rep(TRUE, times = 14)
+week <- seq(-2, 24, by = 2)
+treatment <- rep("treatment", times = 14)
+control <- rep("control", times = 14)
+# Change object name
+A9072$animal <- as.factor(animal)
+# Change object name
+A9072$sex <- as.factor(sex)
+# Change object name
+A9072$group.id <- as.factor(group.id)
+# Change object name
+A9072$functional <- functional
+# Change object name
+A9072$week <- week
+# Change object name and input treatment/control
+A9072$treatment <- as.factor(control)
+# Change object name TWICE
+A9072 <- full_join(A9072, subject_data, by = "week", copy = TRUE)
+# Change object name
+A9072
+```
+
+## 9073
+
+```{r}
+subject_data <- data.frame()
+# Input the correct file path
+subject_folder <- "./Total Surface Area/9073"
+subject_data <- SA_calc(subject_folder)
+# Change object name
+A9073 <- data.frame()
+# Change object name
+A9073[1:14, ] <- NA
+# Modify animal according to subject number
+animal <- rep("9073", times = 14)
+# Assign sex
+sex <- rep("M", times = 14)
+# Assign group
+group.id <- rep(5, times = 14)
+# Functional, TRUE or FALSE?
+functional <- rep(FALSE, times = 14)
+week <- seq(-2, 24, by = 2)
+treatment <- rep("treatment", times = 14)
+control <- rep("control", times = 14)
+# Change object name
+A9073$animal <- as.factor(animal)
+# Change object name
+A9073$sex <- as.factor(sex)
+# Change object name
+A9073$group.id <- as.factor(group.id)
+# Change object name
+A9073$functional <- functional
+# Change object name
+A9073$week <- week
+# Change object name and input treatment/control
+A9073$treatment <- as.factor(treatment)
+# Change object name TWICE
+A9073 <- full_join(A9073, subject_data, by = "week", copy = TRUE)
+# Change object name
+A9073
+```
+
+## 9202
+
+```{r}
+subject_data <- data.frame()
+# Input the correct file path
+subject_folder <- "./Total Surface Area/9202"
+subject_data <- SA_calc(subject_folder)
+# Change object name
+A9202 <- data.frame()
+# Change object name
+A9202[1:14, ] <- NA
+# Modify animal according to subject number
+animal <- rep("9202", times = 14)
+# Assign sex
+sex <- rep("F", times = 14)
+# Assign group
+group.id <- rep(3, times = 14)
+# Functional, TRUE or FALSE?
+functional <- rep(TRUE, times = 14)
+week <- seq(-2, 24, by = 2)
+treatment <- rep("treatment", times = 14)
+control <- rep("control", times = 14)
+# Change object name
+A9202$animal <- as.factor(animal)
+# Change object name
+A9202$sex <- as.factor(sex)
+# Change object name
+A9202$group.id <- as.factor(group.id)
+# Change object name
+A9202$functional <- functional
+# Change object name
+A9202$week <- week
+# Change object name and input treatment/control
+A9202$treatment <- as.factor(treatment)
+# Change object name TWICE
+A9202 <- full_join(A9202, subject_data, by = "week", copy = TRUE)
+# Change object name
+A9202
+```
+
+## 9203
+
+```{r}
+subject_data <- data.frame()
+# Input the correct file path
+subject_folder <- "./Total Surface Area/9203"
+subject_data <- SA_calc(subject_folder)
+# Change object name
+A9203 <- data.frame()
+# Change object name
+A9203[1:14, ] <- NA
+# Modify animal according to subject number
+animal <- rep("9203", times = 14)
+# Assign sex
+sex <- rep("F", times = 14)
+# Assign group
+group.id <- rep(3, times = 14)
+# Functional, TRUE or FALSE?
+functional <- rep(TRUE, times = 14)
+week <- seq(-2, 24, by = 2)
+treatment <- rep("treatment", times = 14)
+control <- rep("control", times = 14)
+# Change object name
+A9203$animal <- as.factor(animal)
+# Change object name
+A9203$sex <- as.factor(sex)
+# Change object name
+A9203$group.id <- as.factor(group.id)
+# Change object name
+A9203$functional <- functional
+# Change object name
+A9203$week <- week
+# Change object name and input treatment/control
+A9203$treatment <- as.factor(control)
+# Change object name TWICE
+A9203 <- full_join(A9203, subject_data, by = "week", copy = TRUE)
+# Change object name
+A9203
+```
+
+## 9204
+
+```{r}
+subject_data <- data.frame()
+# Input the correct file path
+subject_folder <- "./Total Surface Area/9204"
+subject_data <- SA_calc(subject_folder)
+# Change object name
+A9204 <- data.frame()
+# Change object name
+A9204[1:14, ] <- NA
+# Modify animal according to subject number
+animal <- rep("9204", times = 14)
+# Assign sex
+sex <- rep("M", times = 14)
+# Assign group
+group.id <- rep(3, times = 14)
+# Functional, TRUE or FALSE?
+functional <- rep(TRUE, times = 14)
+week <- seq(-2, 24, by = 2)
+treatment <- rep("treatment", times = 14)
+control <- rep("control", times = 14)
+# Change object name
+A9204$animal <- as.factor(animal)
+# Change object name
+A9204$sex <- as.factor(sex)
+# Change object name
+A9204$group.id <- as.factor(group.id)
+# Change object name
+A9204$functional <- functional
+# Change object name
+A9204$week <- week
+# Change object name and input treatment/control
+A9204$treatment <- as.factor(control)
+# Change object name TWICE
+A9204 <- full_join(A9204, subject_data, by = "week", copy = TRUE)
+# Change object name
+A9204
+```
+
+## 9211
+
+```{r}
+subject_data <- data.frame()
+# Input the correct file path
+subject_folder <- "./Total Surface Area/9211"
+subject_data <- SA_calc(subject_folder)
+# Change object name
+A9211 <- data.frame()
+# Change object name
+A9211[1:14, ] <- NA
+# Modify animal according to subject number
+animal <- rep("9211", times = 14)
+# Assign sex
+sex <- rep("F", times = 14)
+# Assign group
+group.id <- rep(6, times = 14)
+# Functional, TRUE or FALSE?
+functional <- rep(TRUE, times = 14)
+week <- seq(-2, 24, by = 2)
+treatment <- rep("treatment", times = 14)
+control <- rep("control", times = 14)
+# Change object name
+A9211$animal <- as.factor(animal)
+# Change object name
+A9211$sex <- as.factor(sex)
+# Change object name
+A9211$group.id <- as.factor(group.id)
+# Change object name
+A9211$functional <- functional
+# Change object name
+A9211$week <- week
+# Change object name and input treatment/control
+A9211$treatment <- as.factor(treatment)
+# Change object name TWICE
+A9211 <- full_join(A9211, subject_data, by = "week", copy = TRUE)
+# Change object name
+A9211
+```
+
+## 9212
+
+```{r}
+subject_data <- data.frame()
+# Input the correct file path
+subject_folder <- "./Total Surface Area/9212"
+subject_data <- SA_calc(subject_folder)
+# Change object name
+A9212 <- data.frame()
+# Change object name
+A9212[1:14, ] <- NA
+# Modify animal according to subject number
+animal <- rep("9212", times = 14)
+# Assign sex
+sex <- rep("F", times = 14)
+# Assign group
+group.id <- rep(6, times = 14)
+# Functional, TRUE or FALSE?
+functional <- rep(TRUE, times = 14)
+week <- seq(-2, 24, by = 2)
+treatment <- rep("treatment", times = 14)
+control <- rep("control", times = 14)
+# Change object name
+A9212$animal <- as.factor(animal)
+# Change object name
+A9212$sex <- as.factor(sex)
+# Change object name
+A9212$group.id <- as.factor(group.id)
+# Change object name
+A9212$functional <- functional
+# Change object name
+A9212$week <- week
+# Change object name and input treatment/control
+A9212$treatment <- as.factor(control)
+# Change object name TWICE
+A9212 <- full_join(A9212, subject_data, by = "week", copy = TRUE)
+# Change object name
+A9212
+```
+
+## 9213
+
+```{r}
+subject_data <- data.frame()
+# Input the correct file path
+subject_folder <- "./Total Surface Area/9213"
+subject_data <- SA_calc(subject_folder)
+# Change object name
+A9213 <- data.frame()
+# Change object name
+A9213[1:14, ] <- NA
+# Modify animal according to subject number
+animal <- rep("9213", times = 14)
+# Assign sex
+sex <- rep("F", times = 14)
+# Assign group
+group.id <- rep(6, times = 14)
+# Functional, TRUE or FALSE?
+functional <- rep(TRUE, times = 14)
+week <- seq(-2, 24, by = 2)
+treatment <- rep("treatment", times = 14)
+control <- rep("control", times = 14)
+# Change object name
+A9213$animal <- as.factor(animal)
+# Change object name
+A9213$sex <- as.factor(sex)
+# Change object name
+A9213$group.id <- as.factor(group.id)
+# Change object name
+A9213$functional <- functional
+# Change object name
+A9213$week <- week
+# Change object name and input treatment/control
+A9213$treatment <- as.factor(treatment)
+# Change object name TWICE
+A9213 <- full_join(A9213, subject_data, by = "week", copy = TRUE)
+# Change object name
+A9213
+```
+
+# Final step: merge all data frames together
+
+```{r}
+# list of all the data frames to be combined
+structural_master <- rbind.data.frame(A9022, A9023, A9025, A9026, A9031, A9035,
+                    A9058, A9060, A9062, A9067,
+                    A9068, A9071, A9072, A9073,
+                    A9202, A9203, A9204,
+                    A9211, A9212, A9213)
+structural_master
+```
+
+```{r}
+A9072
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

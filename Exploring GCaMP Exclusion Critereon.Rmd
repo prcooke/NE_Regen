@@ -1,0 +1,663 @@
+---
+title: "Exploring GCaMP Exclusion Critereon"
+author: "Patrick"
+date: "2023-12-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Goal: determine a criterion/metric by which to exclude responses that have an unstable baseline.
+
+An unstable baseline can do a few things
+
+1. May indicate a sponetous startle arrousal/respose that would prevent the animal from properly responding to the applied air puff.
+2. May confound peak amplitude or rise times. Astrocytes display Ca2+ transients for reasons other than NE release and if they occur in the baseline
+
+So how do we determine if the trial should be excluded?
+
+1. Load in some example data for a variety of traces that I believe should be excluded - 5 of each?
+
+2. Plot them on top of each other and look at the baseline to see what we can
+
+Exclude:
+
+- 9025.11
+- 9025.12
+- 9025.13
+- 9203.11
+- 9203.14
+- 9025.72 (already loaded)
+- 9023.11 (already loaded)
+
+Packages
+```{r}
+library(Metrics)
+library(data.table)
+library(dplyr)
+library(tidyverse)
+library(gsignal)
+library(npreg)
+```
+
+Load in and apply filter/vizualize data subset
+```{r}
+# Exclude 
+file_path <- "./Functional_Noise_Proc/9025/W1/1.csv"
+G9025.11 <- dff(file_path)
+ss.9025.11 <- ss(G9025.11$time, G9025.11$dFF, nknots = 15, m = 2)
+plot(G9025.11$time, G9025.11$dFF, type = "l", xlim = c(-8, 30), main = "Exclude: G9025.11", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.11, G9025.11$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9025.11 <- predict(ss.9025.11, G9025.11$time)
+
+file_path <- "./Functional_Noise_Proc/9025/W1/2.csv"
+G9025.12 <- dff(file_path)
+ss.9025.12 <- ss(G9025.12$time, G9025.12$dFF, nknots = 15, m = 2)
+plot(G9025.12$time, G9025.12$dFF, type = "l", xlim = c(-8, 30), main = "Exclude: G9025.12", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.12, G9025.12$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9025.12 <- predict(ss.9025.12, G9025.12$time)
+
+file_path <- "./Functional_Noise_Proc/9025/W1/3.csv"
+G9025.13 <- dff(file_path)
+ss.9025.13 <- ss(G9025.13$time, G9025.13$dFF, nknots = 15, m = 2)
+plot(G9025.13$time, G9025.13$dFF, type = "l", xlim = c(-8, 30), main = "Exclude: G9025.13", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.13, G9025.13$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9025.13 <- predict(ss.9025.13, G9025.13$time)
+
+file_path <- "./Functional_Noise_Proc/9203/W1/1.csv"
+G9203.11 <- dff(file_path)
+ss.9203.11 <- ss(G9203.11$time, G9203.11$dFF, nknots = 15, m = 2)
+plot(G9203.11$time, G9203.11$dFF, type = "l", xlim = c(-8, 30), main = "Exclude: G9203.11", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9203.11, G9203.11$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9203.11 <- predict(ss.9203.11, G9203.11$time)
+
+file_path <- "./Functional_Noise_Proc/9203/W1/4.csv"
+G9203.14 <- dff(file_path)
+ss.9203.14 <- ss(G9203.14$time, G9203.14$dFF, nknots = 15, m = 2)
+plot(G9203.14$time, G9203.14$dFF, type = "l", xlim = c(-8, 30), main = "Exclude: G9203.14", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9203.14, G9203.14$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9203.14 <- predict(ss.9203.14, G9203.14$time)
+
+ss.9025.72 <- ss(G9025.72$time, G9025.72$dFF, nknots = 15, m = 2)
+plot(G9025.72$time, G9025.72$dFF, type = "l", xlim = c(-8, 30), main = "Exclude: G9025.72", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.72, G9025.72$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9025.72 <- predict(ss.9025.72, G9025.72$time)
+
+ss.9023.11 <- ss(G9023.11$time, G9023.11$dFF, nknots = 15, m = 2)
+plot(G9023.11$time, G9023.11$dFF, type = "l", xlim = c(-8, 30), main = "Exclude: G9023.11", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9023.11, G9023.11$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9023.11 <- predict(ss.9023.11, G9023.11$time)
+
+#Include
+ss.9023.12 <- ss(G9023.12$time, G9023.12$dFF, nknots = 15, m = 2)
+plot(G9023.12$time, G9023.12$dFF, type = "l", xlim = c(-8, 30), main = "Include: G9023.12", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9023.12, G9023.12$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9023.12 <- predict(ss.9023.12, G9023.12$time)
+
+ss.9022.11 <- ss(G9022.11$time, G9022.11$dFF, nknots = 15, m = 2)
+plot(G9022.11$time, G9022.11$dFF, type = "l", xlim = c(-8, 30), main = "Include: G9022.11", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9022.11, G9022.11$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9022.11 <- predict(ss.9022.11, G9022.11$time)
+
+ss.9022.13 <- ss(G9022.13$time, G9022.13$dFF, nknots = 15, m = 2)
+plot(G9022.13$time, G9022.13$dFF, type = "l", xlim = c(-8, 30), main = "Include: G9022.13", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9022.13, G9022.13$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9022.13 <- predict(ss.9022.13, G9022.13$time)
+
+ss.9025.32 <- ss(G9025.32$time, G9025.32$dFF, nknots = 15, m = 2)
+plot(G9025.32$time, G9025.32$dFF, type = "l", xlim = c(-8, 30), main = "Include: G9025.32", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.32, G9025.32$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9025.32 <- predict(ss.9025.32, G9025.32$time)
+
+ss.9025.53 <- ss(G9025.53$time, G9025.53$dFF, nknots = 15, m = 2)
+plot(G9025.53$time, G9025.53$dFF, type = "l", xlim = c(-8, 30), main = "Include: G9025.53", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.53, G9025.53$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9025.53 <- predict(ss.9025.53, G9025.53$time)
+
+# Questionable
+ss.9023.13 <- ss(G9023.13$time, G9023.13$dFF, nknots = 15, m = 2)
+plot(G9023.13$time, G9023.13$dFF, type = "l", xlim = c(-8, 30), main = "Questionable: G9023.13", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9023.13, G9023.13$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9023.13 <- predict(ss.9023.13, G9023.13$time)
+
+ss.9023.33 <- ss(G9023.33$time, G9023.33$dFF, nknots = 15, m = 2)
+plot(G9023.33$time, G9023.33$dFF, type = "l", xlim = c(-8, 30), main = "Questionable: G9023.33", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9023.33, G9023.33$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9023.33 <- predict(ss.9023.33, G9023.33$time)
+
+ss.9025.51 <- ss(G9025.51$time, G9025.51$dFF, nknots = 15, m = 2)
+plot(G9025.51$time, G9025.51$dFF, type = "l", xlim = c(-8, 30), main = "Questionable: G9025.51", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.51, G9025.51$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9025.51 <- predict(ss.9025.51, G9025.51$time)
+
+ss.9203.53 <- ss(G9203.53$time, G9203.53$dFF, nknots = 15, m = 2)
+plot(G9203.53$time, G9203.53$dFF, type = "l", xlim = c(-8, 30), main = "Questionable: G9203.53", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9203.53, G9203.53$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9203.53 <- predict(ss.9203.53, G9203.53$time)
+```
+
+One big graph
+```{r}
+plot(G9202.32$time, G9202.32$dFF, type = "n", xlim = c(-8, 30), ylim = c(-0.5, 1.5), 
+     main = "Exclusion Criteria Exploration", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.11, G9025.11$time), col = "deeppink", lwd = 2)
+lines(predict(ss.9025.12, G9025.12$time), col = "deeppink", lwd = 2)
+lines(predict(ss.9025.13, G9025.13$time), col = "deeppink", lwd = 2)
+lines(predict(ss.9203.11, G9203.11$time), col = "deeppink", lwd = 2)
+lines(predict(ss.9203.14, G9203.14$time), col = "deeppink", lwd = 2)
+lines(predict(ss.9025.72, G9025.72$time), col = "deeppink", lwd = 2)
+lines(predict(ss.9023.11, G9023.11$time), col = "deeppink", lwd = 2)
+lines(predict(ss.9023.12, G9023.12$time), col = "chartreuse4", lwd = 2)
+lines(predict(ss.9022.11, G9022.11$time), col = "chartreuse4", lwd = 2)
+lines(predict(ss.9022.13, G9022.13$time), col = "chartreuse4", lwd = 2)
+lines(predict(ss.9025.32, G9025.32$time), col = "chartreuse4", lwd = 2)
+lines(predict(ss.9025.53, G9025.53$time), col = "chartreuse4", lwd = 2)
+lines(predict(ss.9023.13, G9023.13$time), col = "darkgoldenrod", lwd = 2)
+lines(predict(ss.9023.33, G9023.33$time), col = "darkgoldenrod", lwd = 2)
+lines(predict(ss.9025.51, G9025.51$time), col = "darkgoldenrod", lwd = 2)
+lines(predict(ss.9203.53, G9203.53$time), col = "darkgoldenrod", lwd = 2)
+legend("topright", 
+       legend = c("9025.11", "9025.12", "9025.13", "9203.11", "9203.14", "9025.72",
+                  "9023.11", "9023.12", "9022.11", "9022.13", "9025.32", "9025.53",
+                  "9023.13", "9023.33", "9025.51", "9203.53"),
+       fill = c("deeppink", "deeppink", "deeppink", "deeppink", "deeppink",
+                "deeppink", "deeppink", "chartreuse4", "chartreuse4", "chartreuse4",
+                "chartreuse4", "chartreuse4", "darkgoldenrod", "darkgoldenrod",
+                "darkgoldenrod", "darkgoldenrod"))
+legend("topleft", legend = c("Exclude", "Include", "Questionable"), 
+       fill = "deeppink", "chartreuse4", "darkgoldenrod")
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+```
+
+Nothing immediately jumps out - lets find fit a linear model and find the variance to see if those align with my personal judgement. 
+
+Calculate the slope of the filtered baseline by fitting a linear model
+
+```{r}
+lm9025.11 <- lm(y[11:50] ~ x[11:50], S9025.11)
+lm9025.11
+coef(lm9025.11)[2]
+
+plot(G9025.11$time, G9025.11$dFF, type = "l", xlim = c(-8, 30), main = "Exclude: G9025.11", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.11, G9025.11$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+abline(lm9025.11, lwd = 2, col = "red")
+```
+Retrieve linear fit of the raw and filtered baseline
+```{r}
+## Exclude
+lm9025.11 <- lm(dFF[11:50] ~ time[11:50], G9025.11)
+s_lm9025.11 <- lm(y[11:50] ~ x[11:50], S9025.11)
+
+lm9025.12 <- lm(dFF[11:50] ~ time[11:50], G9025.12)
+s_lm9025.12 <- lm(y[11:50] ~ x[11:50], S9025.12)
+
+lm9025.13 <- lm(dFF[11:50] ~ time[11:50], G9025.13)
+s_lm9025.13 <- lm(y[11:50] ~ x[11:50], S9025.13)
+
+lm9203.11 <- lm(dFF[11:50] ~ time[11:50], G9203.11)
+s_lm9203.11 <- lm(y[11:50] ~ x[11:50], S9203.11)
+
+lm9203.14 <- lm(dFF[11:50] ~ time[11:50], G9203.14)
+s_lm9203.14 <- lm(y[11:50] ~ x[11:50], S9203.14)
+
+lm9025.72 <- lm(dFF[11:50] ~ time[11:50], G9025.72)
+s_lm9025.72 <- lm(y[11:50] ~ x[11:50], S9025.72)
+
+lm9023.11 <- lm(dFF[11:50] ~ time[11:50], G9023.11)
+s_lm9023.11 <- lm(y[11:50] ~ x[11:50], S9023.11)
+
+## Include:
+lm9023.12 <- lm(dFF[11:50] ~ time[11:50], G9023.12)
+s_lm9023.12 <- lm(y[11:50] ~ x[11:50], S9023.12)
+
+lm9022.11 <- lm(dFF[11:50] ~ time[11:50], G9022.11)
+s_lm9022.11 <- lm(y[11:50] ~ x[11:50], S9022.11)
+
+lm9022.13 <- lm(dFF[11:50] ~ time[11:50], G9022.13)
+s_lm9022.13 <- lm(y[11:50] ~ x[11:50], S9022.13)
+
+lm9025.32 <- lm(dFF[11:50] ~ time[11:50], G9025.32)
+s_lm9025.32 <- lm(y[11:50] ~ x[11:50], S9025.32)
+
+lm9025.53 <- lm(dFF[11:50] ~ time[11:50], G9025.53)
+s_lm9025.53 <- lm(y[11:50] ~ x[11:50], S9025.53)
+
+## Questionable:
+lm9023.13 <- lm(dFF[11:50] ~ time[11:50], G9023.13)
+s_lm9023.13 <- lm(y[11:50] ~ x[11:50], S9023.13)
+
+lm9023.33 <- lm(dFF[11:50] ~ time[11:50], G9023.33)
+s_lm9023.33 <- lm(y[11:50] ~ x[11:50], S9023.33)
+
+lm9025.51 <- lm(dFF[11:50] ~ time[11:50], G9025.51)
+s_lm9025.51 <- lm(y[11:50] ~ x[11:50], S9025.51)
+
+lm9203.53 <- lm(dFF[11:50] ~ time[11:50], G9203.53)
+s_lm9203.53 <- lm(y[11:50] ~ x[11:50], S9203.53)
+```
+
+Retrieve absolute value of the slope for each (want absolute value as we care about deviation from flat)
+```{r}
+## Exclude
+slope9025.11 <- abs(coef(lm9025.11)[2])
+s_slope9025.11 <- abs(coef(s_lm9025.11)[2])
+
+slope9025.12 <- abs(coef(lm9025.12)[2])
+s_slope9025.12 <- abs(coef(s_lm9025.12)[2])
+
+slope9025.13 <- abs(coef(lm9025.13)[2])
+s_slope9025.13 <- abs(coef(s_lm9025.13)[2])
+
+slope9203.11 <- abs(coef(lm9203.11)[2])
+s_slope9203.11 <- abs(coef(s_lm9203.11)[2])
+
+slope9203.14 <- abs(coef(lm9203.14)[2])
+s_slope9203.14 <- abs(coef(s_lm9203.14)[2])
+
+slope9025.72 <- abs(coef(lm9025.72)[2])
+s_slope9025.72 <- abs(coef(s_lm9025.72)[2])
+
+slope9023.11 <- abs(coef(lm9023.11)[2])
+s_slope9023.11 <- abs(coef(s_lm9023.11)[2])
+
+## Include
+slope9023.12 <- abs(coef(lm9023.12)[2])
+s_slope9023.12 <- abs(coef(s_lm9023.12)[2])
+
+slope9022.11 <- abs(coef(lm9022.11)[2])
+s_slope9022.11 <- abs(coef(s_lm9022.11)[2])
+
+slope9022.13 <- abs(coef(lm9022.13)[2])
+s_slope9022.13 <- abs(coef(s_lm9022.13)[2])
+
+slope9025.32 <- abs(coef(lm9025.32)[2])
+s_slope9025.32 <- abs(coef(s_lm9025.32)[2])
+
+slope9025.53 <- abs(coef(lm9025.53)[2])
+s_slope9025.53 <- abs(coef(s_lm9025.53)[2])
+
+## Questionable
+slope9023.13 <- abs(coef(lm9023.13)[2])
+s_slope9023.13 <- abs(coef(s_lm9023.13)[2])
+
+slope9023.33 <- abs(coef(lm9023.33)[2])
+s_slope9023.33 <- abs(coef(s_lm9023.33)[2])
+
+slope9025.51 <- abs(coef(lm9025.51)[2])
+s_slope9025.51 <- abs(coef(s_lm9025.51)[2])
+
+slope9203.53 <- abs(coef(lm9203.53)[2])
+s_slope9203.53 <- abs(coef(s_lm9203.53)[2])
+```
+
+Extract the variance of the filtered and raw baseline:
+```{r}
+var9025.11 <- var(S9025.11$y[11:50])
+var9025.11
+```
+
+```{r}
+## Exclude
+var9025.11 <- var(G9025.11$dFF[11:50])
+s_var9025.11 <- var(S9025.11$y[11:50])
+
+var9025.12 <- var(G9025.12$dFF[11:50])
+s_var9025.12 <- var(S9025.12$y[11:50])
+
+var9025.13 <- var(G9025.13$dFF[11:50])
+s_var9025.13 <- var(S9025.13$y[11:50])
+
+var9203.11 <- var(G9203.11$dFF[11:50])
+s_var9203.11 <- var(S9203.11$y[11:50])
+
+var9203.14 <- var(G9203.14$dFF[11:50])
+s_var9203.14 <- var(S9203.14$y[11:50])
+
+var9025.72 <- var(G9025.72$dFF[11:50])
+s_var9025.72 <- var(S9025.72$y[11:50])
+
+var9023.11 <- var(G9023.11$dFF[11:50])
+s_var9023.11 <- var(S9023.11$y[11:50])
+
+## Include:
+var9023.12 <- var(G9023.12$dFF[11:50])
+s_var9023.12 <- var(S9023.12$y[11:50])
+
+var9022.11 <- var(G9022.11$dFF[11:50])
+s_var9022.11 <- var(S9022.11$y[11:50])
+
+var9022.13 <- var(G9025.13$dFF[11:50])
+s_var9022.13 <- var(S9025.13$y[11:50])
+
+var9025.32 <- var(G9025.32$dFF[11:50])
+s_var9025.32 <- var(S9025.32$y[11:50])
+
+var9025.53 <- var(G9025.53$dFF[11:50])
+s_var9025.53 <- var(S9025.53$y[11:50])
+
+## Questionable:
+var9023.13 <- var(G9023.13$dFF[11:50])
+s_var9023.13 <- var(S9023.13$y[11:50])
+
+var9023.33 <- var(G9023.33$dFF[11:50])
+s_var9023.33 <- var(S9023.33$y[11:50])
+
+var9025.51 <- var(G9025.51$dFF[11:50])
+s_var9025.51 <- var(S9025.51$y[11:50])
+
+var9203.53 <- var(G9203.53$dFF[11:50])
+s_var9203.53 <- var(S9203.53$y[11:50]) 
+```
+
+
+Make a table:
+```{r}
+inclusion_exp <- data.frame()
+inclusion_exp[1:16, ] <- NA
+inclusion_exp$id <- c(9025.11, 9025.12, 9025.13, 9203.11, 9203.14, 9025.72, 9023.11,
+                      9023.12, 9022.11, 9022.13, 9025.32, 9025.53, 9023.13, 9023.33,
+                      9025.51, 9203.53)
+inclusion_exp$Rtype <- c("Exclude", "Exclude", "Exclude", "Exclude", "Exclude", "Exclude",
+                       "Exclude", "Include", "Include", "Include", "Include", "Include",
+                       "Questionable", "Questionable", "Questionable", "Questionable")
+inclusion_exp$rawslope <- c(slope9025.11, slope9025.12, slope9025.13, slope9203.11,
+                            slope9203.14, slope9025.72, slope9023.11, slope9023.12,
+                            slope9022.11, slope9022.13, slope9025.32, slope9025.53,
+                            slope9023.13, slope9023.33, slope9025.51, slope9203.53)
+inclusion_exp$filtslope <- c(s_slope9025.11, s_slope9025.12, s_slope9025.13, s_slope9203.11,
+                             s_slope9203.14, s_slope9025.72, s_slope9023.11, s_slope9023.12,
+                             s_slope9022.11, s_slope9022.13, s_slope9025.32, s_slope9025.53,
+                             s_slope9023.13, s_slope9023.33, s_slope9025.51, s_slope9203.53)
+inclusion_exp$rawvar <- c(var9025.11, var9025.12, var9025.13, var9203.11,
+                          var9203.14, var9025.72, var9023.11, var9023.12,
+                          var9022.11, var9022.13, var9025.32, var9025.53,
+                          var9023.13, var9023.33, var9025.51, var9203.53)
+inclusion_exp$filtvar <- c(s_var9025.11, s_var9025.12, s_var9025.13, s_var9203.11,
+                           s_var9203.14, s_var9025.72, s_var9023.11, s_var9023.12,
+                           s_var9022.11, s_var9022.13, s_var9025.32, s_var9025.53,
+                           s_var9023.13, s_var9023.33, s_var9025.51, s_var9203.53)
+inclusion_exp
+write.csv(inclusion_exp, file = "./GCaMP_insclusion_criteria.csv", row.names = FALSE)
+```
+Lets remake the graphs with a slope on each
+
+```{r}
+# Exclude 
+plot(G9025.11$time, G9025.11$dFF, type = "l", xlim = c(-8, 30), main = "Exclude: G9025.11", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.11, G9025.11$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+abline(s_lm9025.11, lwd = 1, col = "green")
+abline(lm9025.11, lwd = 1, col = "black")
+
+plot(G9025.12$time, G9025.12$dFF, type = "l", xlim = c(-8, 30), main = "Exclude: G9025.12", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.12, G9025.12$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+abline(s_lm9025.12, lwd = 1, col = "green")
+abline(lm9025.12, lwd = 1, col = "black")
+
+plot(G9025.13$time, G9025.13$dFF, type = "l", xlim = c(-8, 30), main = "Exclude: G9025.13", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.13, G9025.13$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+abline(s_lm9025.13, lwd = 1, col = "green")
+abline(lm9025.13, lwd = 1, col = "black")
+
+plot(G9203.11$time, G9203.11$dFF, type = "l", xlim = c(-8, 30), main = "Exclude: G9203.11", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9203.11, G9203.11$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+abline(s_lm9203.11, lwd = 1, col = "green")
+abline(lm9203.11, lwd = 1, col = "black")
+
+plot(G9203.14$time, G9203.14$dFF, type = "l", xlim = c(-8, 30), main = "Exclude: G9203.14", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9203.14, G9203.14$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+abline(s_lm9203.14, lwd = 1, col = "green")
+abline(lm9203.14, lwd = 1, col = "black")
+
+plot(G9025.72$time, G9025.72$dFF, type = "l", xlim = c(-8, 30), main = "Exclude: G9025.72", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.72, G9025.72$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+abline(s_lm9025.72, lwd = 1, col = "green")
+abline(lm9025.72, lwd = 1, col = "black")
+
+plot(G9023.11$time, G9023.11$dFF, type = "l", xlim = c(-8, 30), main = "Exclude: G9023.11", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9023.11, G9023.11$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+abline(s_lm9023.11, lwd = 1, col = "green")
+abline(lm9023.11, lwd = 1, col = "black")
+
+#Include
+plot(G9023.12$time, G9023.12$dFF, type = "l", xlim = c(-8, 30), main = "Include: G9023.12", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9023.12, G9023.12$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+abline(s_lm9023.12, lwd = 1, col = "green")
+abline(lm9023.12, lwd = 1, col = "black")
+
+plot(G9022.11$time, G9022.11$dFF, type = "l", xlim = c(-8, 30), main = "Include: G9022.11", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9022.11, G9022.11$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+abline(s_lm9022.11, lwd = 1, col = "green")
+abline(lm9022.11, lwd = 1, col = "black")
+
+plot(G9022.13$time, G9022.13$dFF, type = "l", xlim = c(-8, 30), main = "Include: G9022.13", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9022.13, G9022.13$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+abline(s_lm9022.13, lwd = 1, col = "green")
+abline(lm9022.13, lwd = 1, col = "black")
+
+plot(G9025.32$time, G9025.32$dFF, type = "l", xlim = c(-8, 30), main = "Include: G9025.32", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.32, G9025.32$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+abline(s_lm9025.32, lwd = 1, col = "green")
+abline(lm9025.32, lwd = 1, col = "black")
+
+plot(G9025.53$time, G9025.53$dFF, type = "l", xlim = c(-8, 30), main = "Include: G9025.53", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.53, G9025.53$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+abline(s_lm9025.53, lwd = 1, col = "green")
+abline(lm9025.53, lwd = 1, col = "black")
+
+# Questionable
+plot(G9023.13$time, G9023.13$dFF, type = "l", xlim = c(-8, 30), main = "Questionable: G9023.13", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9023.13, G9023.13$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+abline(s_lm9023.13, lwd = 1, col = "green")
+abline(lm9023.13, lwd = 1, col = "black")
+
+plot(G9023.33$time, G9023.33$dFF, type = "l", xlim = c(-8, 30), main = "Questionable: G9023.33", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9023.33, G9023.33$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+abline(s_lm9023.33, lwd = 1, col = "green")
+abline(lm9023.33, lwd = 1, col = "black")
+
+plot(G9025.51$time, G9025.51$dFF, type = "l", xlim = c(-8, 30), main = "Questionable: G9025.51", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.51, G9025.51$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+abline(s_lm9025.11, lwd = 1, col = "green")
+abline(lm9025.11, lwd = 1, col = "black")
+
+plot(G9203.53$time, G9203.53$dFF, type = "l", xlim = c(-8, 30), main = "Questionable: G9203.53", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9203.53, G9203.53$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+abline(s_lm9203.53, lwd = 1, col = "green")
+abline(lm9203.53, lwd = 1, col = "black")
+```
+
+After discussing it with David, we would like to look at the range of the baseline as a criteria with a potential threshold of 0.5 - Lets grab the baseline ranges from all of these traces and line them up. We'll then remake the graphs labeling them according to that threshold and see where they sit.
+
+Calculate the ranges
+```{r}
+range9025.11 <- max(S9025.11$y[11:50]) - min(S9025.11$y[11:50])
+range9025.11
+```
+
+
+```{r}
+range9025.11 <- max(S9025.11$y[11:50]) - min(S9025.11$y[11:50])
+range9025.12 <- max(S9025.12$y[11:50]) - min(S9025.12$y[11:50])
+range9025.13 <- max(S9025.13$y[11:50]) - min(S9025.13$y[11:50])
+range9203.11 <- max(S9203.11$y[11:50]) - min(S9203.11$y[11:50])
+range9203.14 <- max(S9203.14$y[11:50]) - min(S9203.14$y[11:50])
+range9025.72 <- max(S9025.72$y[11:50]) - min(S9025.72$y[11:50])
+range9023.11 <- max(S9023.11$y[11:50]) - min(S9023.11$y[11:50])
+range9023.12 <- max(S9023.12$y[11:50]) - min(S9023.12$y[11:50])
+range9022.11 <- max(S9022.11$y[11:50]) - min(S9022.11$y[11:50])
+range9022.13 <- max(S9022.13$y[11:50]) - min(S9022.13$y[11:50])
+range9025.32 <- max(S9025.32$y[11:50]) - min(S9025.32$y[11:50])
+range9025.53 <- max(S9025.53$y[11:50]) - min(S9025.53$y[11:50])
+range9023.13 <- max(S9023.13$y[11:50]) - min(S9023.13$y[11:50])
+range9023.33 <- max(S9023.33$y[11:50]) - min(S9023.33$y[11:50])
+range9025.51 <- max(S9025.51$y[11:50]) - min(S9025.51$y[11:50])
+range9203.53 <- max(S9203.53$y[11:50]) - min(S9203.53$y[11:50])
+```
+
+Add them to the table
+```{r}
+inclusion_exp$filtrange <- c(range9025.11, range9025.12, range9025.13, range9203.11,
+                             range9203.14, range9025.72, range9023.11, range9023.12,
+                             range9022.11, range9022.13, range9025.32, range9025.53,
+                             range9023.13, range9023.33, range9025.51, range9203.53)
+inclusion_exp
+write.csv(inclusion_exp, file = "./GCaMP_insclusion_criteria.csv", row.names = FALSE)
+```
+New plots with titles according to the exclusion threshold
+
+```{r}
+# Include
+plot(G9025.11$time, G9025.11$dFF, type = "l", xlim = c(-8, 30), main = "Include: G9025.11", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.11, G9025.11$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+
+plot(G9025.12$time, G9025.12$dFF, type = "l", xlim = c(-8, 30), main = "Include: G9025.12", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.12, G9025.12$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+
+plot(G9203.11$time, G9203.11$dFF, type = "l", xlim = c(-8, 30), main = "Include: G9203.11", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9203.11, G9203.11$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+
+plot(G9023.11$time, G9023.11$dFF, type = "l", xlim = c(-8, 30), main = "Include: G9023.11", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9023.11, G9023.11$time[11:200]), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+
+plot(G9023.12$time, G9023.12$dFF, type = "l", xlim = c(-8, 30), main = "Include: G9023.12", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9023.12, G9023.12$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+
+plot(G9022.11$time, G9022.11$dFF, type = "l", xlim = c(-8, 30), main = "Include: G9022.11", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9022.11, G9022.11$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+
+plot(G9022.13$time, G9022.13$dFF, type = "l", xlim = c(-8, 30), main = "Include: G9022.13", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9022.13, G9022.13$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+
+plot(G9025.32$time, G9025.32$dFF, type = "l", xlim = c(-8, 30), main = "Include: G9025.32", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.32, G9025.32$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+
+plot(G9025.53$time, G9025.53$dFF, type = "l", xlim = c(-8, 30), main = "Include: G9025.53", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.53, G9025.53$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+
+plot(G9023.13$time, G9023.13$dFF, type = "l", xlim = c(-8, 30), main = "Include: G9023.13", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9023.13, G9023.13$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+
+plot(G9023.33$time, G9023.33$dFF, type = "l", xlim = c(-8, 30), main = "Include: G9023.33", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9023.33, G9023.33$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+
+plot(G9203.53$time, G9203.53$dFF, type = "l", xlim = c(-8, 30), main = "Include: G9203.53", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9203.53, G9203.53$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+
+# Exclude
+plot(G9025.51$time, G9025.51$dFF, type = "l", xlim = c(-8, 30), main = "Exclude: G9025.51", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.51, G9025.51$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+
+plot(G9025.72$time, G9025.72$dFF, type = "l", xlim = c(-8, 30), main = "Exclude: G9025.72", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.72, G9025.72$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+
+plot(G9203.14$time, G9203.14$dFF, type = "l", xlim = c(-8, 30), main = "Exclude: G9203.14", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9203.14, G9203.14$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+
+plot(G9025.13$time, G9025.13$dFF, type = "l", xlim = c(-8, 30), main = "Exclude: G9025.13", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.13, G9025.13$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+```
+```{r}
+G9023.11
+```
+

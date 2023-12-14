@@ -1,0 +1,558 @@
+---
+title: "GCaMP PreProc"
+author: "Patrick"
+date: "2023-11-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(data.table)
+library(dplyr)
+library(tidyverse)
+library(gsignal)
+library(boxfilter)
+library(npreg)
+```
+
+
+Problem: images have sterotyped rolling bars of high value pixels obscuring the data, we need to process these out. I'm going to start by examining 9202 W3 data and see what we can do.
+
+Here's a function to load the individual trial data into R, calculate the total fluorescence, and then calculate the change in total fluorescence.
+
+```{r}
+dff <- function(file_path) {
+    # trial timeline by frame
+    func_time <- seq(-10, 29.8, by = 0.2)
+    # empty data frame to fill
+    df <- data.frame()
+    # add empty values
+    df[1:200, ] <- NA
+    # add time column
+    df$time <- func_time
+    # load in the file
+    rawGCaMP <- fread(file_path, header = TRUE)
+    # extract mean from raw data
+    df$mean <- rawGCaMP$Mean
+    # extract the area from raw data
+    df$area <- rawGCaMP$Area
+    # Create a new column for total flourescence
+    df$totalF <- df$mean * df$area
+    # Iterate over the week numbers and add the data to the subject's data frame
+    # Calculate baseline (-7.8 through 0s)
+    baseline <- mean(df$totalF[11:50])
+    # Iterate over each value and calculate deltaF/F
+    for (i in 1:200) {
+        df$dFF <- (df$totalF - baseline) / baseline
+    }
+    return(df)
+}
+```
+
+```{r}
+file_path <- "./Functional_Noise_Proc/9202/W3/1.csv"
+test9202.1 <- dff(file_path)
+test9202.1
+file_path <- "./Functional_Noise_Proc/9202/W3/2.csv"
+test9202.2 <- dff(file_path)
+test9202.2
+file_path <- "./Functional_Noise_Proc/9202/W3/3.csv"
+test9202.3 <- dff(file_path)
+test9202.3
+file_path <- "./Functional_Noise_Proc/9202/W3/4.csv"
+test9202.4 <- dff(file_path)
+test9202.4
+```
+
+
+```{r}
+with(test9202.1, plot(time, dFF, type = "l"))
+with(test9202.2, plot(time, dFF, type = "l"))
+with(test9202.3, plot(time, dFF, type = "l"))
+with(test9202.4, plot(time, dFF, type = "l"))
+```
+In the noise it looks like there is a slower frequency of 7 peaks per 40s which equates to ~0.175Hz. I want to eliminate this and all higher frequency signals. My signal should be between 0 and 3 events per 40s or 0-0.075Hz.
+
+Doing some reading: want a low pass filter to remove higher frequency noise. 
+
+chrome-extension://oemmndcbldboiebfnladdacbdfmadadm/https://arxiv.org/ftp/arxiv/papers/2002/2002.03130.pdf
+"Chebyshev type I filter minimizes the height of the maximum ripple. For the same filter order, the stopband attenuation is higher for the Chebyshev filter. Compared to a Butterworth filter, a Chebyshev-I filter can achieve a sharper transition between the passband and the stopband with a lower order filter."
+
+
+Documentation: https://cran.r-project.org/web/packages/gsignal/vignettes/gsignal.html
+
+Lets try out Butterworth filter through gsignal
+
+Digital filter ("z"):
+This issue: as we reduce the frequency limit we see this delay in the processed line so that it doesn't fit the overall shape of the signal.
+Analog signal didn't change this, just less customization ability. (0.01-0.03Hz was best for this)
+```{r}
+par(mfrow = c(1,2))
+# Examining a low pass butterworth filter with filter order of 1 and a range of 0.0001-xHz
+# Output doesn't seem to matter
+# Doesn't seem to be filtering out the slower noise peaks
+# Increasing n dramatically increases delay
+stable <- butter(1, c(0.0001, 0.02), "low", "z", output = "Sos")
+plot(test9202.2$time, test9202.2$dFF, type = "l")
+z1 <- filter(stable, test9202.2$dFF)
+lines(test9202.2$time, z1, col = "green", lwd = 2)
+plot(test9202.1$time, test9202.1$dFF, type = "l")
+z2 <- filter(stable, test9202.1$dFF)
+lines(test9202.1$time, z2, col = "green", lwd = 2)
+```
+
+Lets look at boxfilter: didn't work well at all - it doesn't remove anything until you increase clipit threshold to 1 and then they all go.
+
+```{r cache = TRUE, eval = FALSE}
+test9202.1_bf <- test9202.1
+boxclip(x = test9202.1_bf$time, y = test9202.1_bf$dFF, clipit = 0.1, plotit = TRUE)
+```
+```{r cache = TRUE, eval = FALSE}
+test9202.2_bf <- test9202.2
+boxclip(x = test9202.2_bf$time, y = test9202.2_bf$dFF, clipit = .001, histo = TRUE)
+```
+
+So lets try a Chebyshev i filter - should have a sharper response then butterworth.
+Not seeing much difference between Butterworth and Chebyshev. Perhaps a bit more custimzation on the Chebyshev.
+I'm not sure how to determine the best n or Rp.
+```{r}
+par(mfrow = c(1,2))
+stable <- cheby1(2, 0.1, c(.0001, 0.015), "low", "z", output = "Sos")
+plot(test9202.2$time, test9202.2$dFF, type = "l")
+z1 <- filter(stable, test9202.2$dFF)
+lines(test9202.2$time, z1, col = "green", lwd = 2)
+plot(test9202.1$time, test9202.1$dFF, type = "l")
+z2 <- filter(stable, test9202.1$dFF)
+lines(test9202.1$time, z2, col = "green", lwd = 2)
+```
+Found someone on stack overflow with a similar question: https://stackoverflow.com/questions/7105962/how-do-i-run-a-high-pass-or-low-pass-filter-on-data-points-in-r
+
+Lets try filtfilt() instead filter()
+Way better!!
+```{r}
+par(mfrow = c(1,2))
+# with filtfilt()
+# lower n reduces the fit/makes the curve rounder.
+# increasing w increases responsiveness to changes in signal
+stable <- butter(3, 1/30, "low", output = "Sos")
+plot(test9202.2$time, test9202.2$dFF, type = "l")
+z1 <- filtfilt(stable, test9202.2$dFF)
+lines(test9202.2$time, z1, col = "green", lwd = 2)
+plot(test9202.1$time, test9202.1$dFF, type = "l")
+z2 <- filtfilt(stable, test9202.1$dFF)
+lines(test9202.1$time, z2, col = "green", lwd = 2)
+```
+Comparing filtfilt() with Chebyshev i filter
+```{r}
+par(mfrow = c(1,2))
+stable <- cheby1(6, 0.1, 1/25, "low", output = "Sos")
+plot(test9202.2$time, test9202.2$dFF, type = "l")
+z1 <- filtfilt(stable, test9202.2$dFF)
+lines(test9202.2$time, z1, col = "green", lwd = 2)
+plot(test9202.1$time, test9202.1$dFF, type = "l")
+z2 <- filtfilt(stable, test9202.1$dFF)
+lines(test9202.1$time, z2, col = "green", lwd = 2)
+
+stable2 <- cheby1(6, 0.1, 1/30, "low", output = "Sos")
+# plot(test9202.2$time, test9202.2$dFF, type = "l")
+z3 <- filtfilt(stable2, test9202.2$dFF)
+# lines(test9202.2$time, z3, col = "green", lwd = 2)
+# plot(test9202.1$time, test9202.1$dFF, type = "l")
+z4 <- filtfilt(stable2, test9202.1$dFF)
+# lines(test9202.1$time, z4, col = "green", lwd = 2)
+```
+
+Trying one more method from that same stackoverflow post:
+Can't seem to get loess to work but smooth.spline is working well.
+```{r}
+par(mfrow = c(1,2))
+# 9202.2
+# Control spar for amount of smoothing. Higher spar is smoother
+lowpass.spline.2 <- smooth.spline(test9202.2$time, test9202.2$dFF, spar = .8)
+# Control span to define the amount of smoothing
+lowpass.loess.2 <- loess(test9202.2$dFF ~ test9202.2$time, data = data.frame(x = test9202.2$time, y = test9202.2$dFF), span = 0.3)
+# 9202.1
+# Control spar for amount of smoothing
+lowpass.spline.1 <- smooth.spline(test9202.1$time, test9202.1$dFF, spar = .8)
+# Control span to define the amount of smoothing
+lowpass.loess.1 <- loess(test9202.1$dFF ~ test9202.1$time,
+                       span = 5)
+
+plot(test9202.2$time, test9202.2$dFF, type = "l")
+lines(predict(lowpass.spline.2, test9202.2$time), col = "green", lwd = 2)
+lines(predict(lowpass.loess.2, test9202.2$time), col = "red", lwd = 2)
+plot(test9202.1$time, test9202.1$dFF, type = "l")
+lines(predict(lowpass.spline.1, test9202.1$time), col = "green", lwd = 2)
+lines(predict(lowpass.loess.1, test9202.1$time), col = "red", lwd = 2)
+```
+
+```{r}
+ss.4 <- ss(G9204.13$time, G9204.13$dFF, nknots = 15, m = 2)
+plot(G9204.13$time, G9204.13$dFF, type = "l", main = "Good Response: 9204.13")
+lines(predict(ss.4, G9204.13$time), col = "green", lwd = 2)
+
+ss.1 <- ss(G9202.32$time, G9202.32$dFF, nknots = 15, m = 2)
+plot(G9202.32$time, G9202.32$dFF, type = "l", main = "No Response: 9202.32")
+lines(predict(ss.1, G9202.32$time), col = "green", lwd = 2)
+```
+
+
+
+
+# Looks like we have three potential methods. Next step is apply them to more trials and compare.
+
+1. butter(3, 1/30, "low", output = "Sos")
+2. cheby1(6, 0.1, 1/25, "low", output = "Sos")
+3. smooth.spline(x, y, spar = .8)
+
+2x no response: 9202.32, 9203.53
+2x good response: 9202.31, 9204.13
+2x meh response: 9204.11, 9202.12
+2x is it a response?: 9202.13, 9203.31
+2x early response: 9202.33, 9203.51
+
+## Next: Load in this data and compare.
+
+Load files
+```{r}
+## No Response
+file_path <- "./Functional_Noise_Proc/9202/W3/2.csv"
+G9202.32 <- dff(file_path)
+with(G9202.32, plot(time, dFF, type = "l"))
+
+file_path <- "./Functional_Noise_Proc/9203/W5/3.csv"
+G9203.53 <- dff(file_path)
+with(G9203.53, plot(time, dFF, type = "l"))
+
+## Good Response
+file_path <- "./Functional_Noise_Proc/9202/W3/1.csv"
+G9202.31 <- dff(file_path)
+with(G9202.31, plot(time, dFF, type = "l"))
+
+file_path <- "./Functional_Noise_Proc/9204/W1/3.csv"
+G9204.13 <- dff(file_path)
+with(G9204.13, plot(time, dFF, type = "l"))
+
+## Meh Response
+file_path <- "./Functional_Noise_Proc/9204/W1/1.csv"
+G9204.11 <- dff(file_path)
+with(G9204.11, plot(time, dFF, type = "l"))
+
+file_path <- "./Functional_Noise_Proc/9202/W1/2.csv"
+G9202.12 <- dff(file_path)
+with(G9202.12, plot(time, dFF, type = "l"))
+
+## Is it a response?
+file_path <- "./Functional_Noise_Proc/9202/W1/3.csv"
+G9202.13 <- dff(file_path)
+with(G9202.13, plot(time, dFF, type = "l"))
+
+file_path <- "./Functional_Noise_Proc/9203/W3/1.csv"
+G9203.31 <- dff(file_path)
+with(G9203.31, plot(time, dFF, type = "l"))
+
+## Early Response
+file_path <- "./Functional_Noise_Proc/9202/W3/3.csv"
+G9202.33 <- dff(file_path)
+with(G9202.33, plot(time, dFF, type = "l"))
+
+file_path <- "./Functional_Noise_Proc/9203/W5/1.csv"
+G9203.51 <- dff(file_path)
+with(G9203.51, plot(time, dFF, type = "l"))
+```
+## Butterworth Filter
+butter(3, 1/30, "low", output = "Sos")
+
+```{r}
+stable <- butter(3, 1/30, "low", output = "Sos")
+
+## No Response
+plot(G9202.32$time, G9202.32$dFF, type = "l", main = "No Response: 9202.32")
+z1 <- filtfilt(stable, G9202.32$dFF)
+lines(G9202.32$time, z1, col = "green", lwd = 2)
+
+plot(G9203.53$time, G9203.53$dFF, type = "l", main = "No Response: 9203.53")
+z2 <- filtfilt(stable, G9203.53$dFF)
+lines(G9203.53$time, z2, col = "green", lwd = 2)
+
+## Good Response
+plot(G9202.31$time, G9202.31$dFF, type = "l", main = "Good Response: 9202.31")
+z3 <- filtfilt(stable, G9202.31$dFF)
+lines(G9202.31$time, z3, col = "green", lwd = 2)
+
+plot(G9204.13$time, G9204.13$dFF, type = "l", main = "Good Response: 9204.13")
+z4 <- filtfilt(stable, G9204.13$dFF)
+lines(G9204.13$time, z4, col = "green", lwd = 2)
+
+## Meh Response
+plot(G9204.11$time, G9204.11$dFF, type = "l", main = "Meh Response: 9204.11")
+z5 <- filtfilt(stable, G9204.11$dFF)
+lines(G9204.11$time, z5, col = "green", lwd = 2)
+
+plot(G9202.12$time, G9202.12$dFF, type = "l", main = "Meh Response: G9202.12")
+z6 <- filtfilt(stable, G9202.12$dFF)
+lines(G9202.12$time, z6, col = "green", lwd = 2)
+
+## Is it a response?
+plot(G9202.13$time, G9202.13$dFF, type = "l", main = "Is it a response?: G9202.13")
+z7 <- filtfilt(stable, G9202.13$dFF)
+lines(G9202.13$time, z7, col = "green", lwd = 2)
+
+plot(G9203.31$time, G9203.31$dFF, type = "l", main = "Is it a response?: 9203.31")
+z8 <- filtfilt(stable, G9203.31$dFF)
+lines(G9203.31$time, z8, col = "green", lwd = 2)
+
+## Early Response
+plot(G9202.33$time, G9202.33$dFF, type = "l", main = "Early Response: 9203.31")
+z9 <- filtfilt(stable, G9202.33$dFF)
+lines(G9202.33$time, z9, col = "green", lwd = 2)
+
+plot(G9203.51$time, G9203.51$dFF, type = "l", main = "Early Response: 9203.51")
+z10 <- filtfilt(stable, G9203.51$dFF)
+lines(G9203.51$time, z10, col = "green", lwd = 2)
+```
+
+## Chebyshev i filter
+2. cheby1(6, 0.1, 1/25, "low", output = "Sos")
+
+```{r}
+stable <- cheby1(6, 0.1, 1/25, "low", output = "Sos")
+
+## No Response
+plot(G9202.32$time, G9202.32$dFF, type = "l", main = "No Response: 9202.32")
+z1 <- filtfilt(stable, G9202.32$dFF)
+lines(G9202.32$time, z1, col = "green", lwd = 2)
+
+plot(G9203.53$time, G9203.53$dFF, type = "l", main = "No Response: 9203.53")
+z2 <- filtfilt(stable, G9203.53$dFF)
+lines(G9203.53$time, z2, col = "green", lwd = 2)
+
+## Good Response
+plot(G9202.31$time, G9202.31$dFF, type = "l", main = "Good Response: 9202.31")
+z3 <- filtfilt(stable, G9202.31$dFF)
+lines(G9202.31$time, z3, col = "green", lwd = 2)
+
+plot(G9204.13$time, G9204.13$dFF, type = "l", main = "Good Response: 9204.13")
+z4 <- filtfilt(stable, G9204.13$dFF)
+lines(G9204.13$time, z4, col = "green", lwd = 2)
+
+## Meh Response
+plot(G9204.11$time, G9204.11$dFF, type = "l", main = "Meh Response: 9204.11")
+z5 <- filtfilt(stable, G9204.11$dFF)
+lines(G9204.11$time, z5, col = "green", lwd = 2)
+
+plot(G9202.12$time, G9202.12$dFF, type = "l", main = "Meh Response: G9202.12")
+z6 <- filtfilt(stable, G9202.12$dFF)
+lines(G9202.12$time, z6, col = "green", lwd = 2)
+
+## Is it a response?
+plot(G9202.13$time, G9202.13$dFF, type = "l", main = "Is it a response?: 9204.11")
+z7 <- filtfilt(stable, G9202.13$dFF)
+lines(G9202.13$time, z7, col = "green", lwd = 2)
+
+plot(G9203.31$time, G9203.31$dFF, type = "l", main = "Is it a response?: 9203.31")
+z8 <- filtfilt(stable, G9203.31$dFF)
+lines(G9203.31$time, z8, col = "green", lwd = 2)
+
+## Early Response
+plot(G9202.33$time, G9202.33$dFF, type = "l", main = "Early Response: 9203.31")
+z9 <- filtfilt(stable, G9202.33$dFF)
+lines(G9202.33$time, z9, col = "green", lwd = 2)
+
+plot(G9203.51$time, G9203.51$dFF, type = "l", main = "Early Response: 9203.51")
+z10 <- filtfilt(stable, G9203.51$dFF)
+lines(G9203.51$time, z10, col = "green", lwd = 2)
+```
+
+## smooth.spline application
+
+```{r}
+## No Response
+lowpass.spline.1 <- smooth.spline(G9202.32$time, G9202.32$dFF, spar = .8)
+plot(G9202.32$time, G9202.32$dFF, type = "l", main = "No Response: 9202.32")
+lines(predict(lowpass.spline.1, G9202.32$time), col = "green", lwd = 2)
+
+lowpass.spline.2 <- smooth.spline(G9203.53$time, G9203.53$dFF, spar = .8)
+plot(G9203.53$time, G9203.53$dFF, type = "l", main = "No Response: 9203.53")
+lines(predict(lowpass.spline.2, G9203.53$time), col = "green", lwd = 2)
+
+## Good Response
+lowpass.spline.3 <- smooth.spline(G9202.31$time, G9202.31$dFF, spar = .8)
+plot(G9202.31$time, G9202.31$dFF, type = "l", main = "Good Response: 9202.31")
+lines(predict(lowpass.spline.3, G9202.31$time), col = "green", lwd = 2)
+
+lowpass.spline.4 <- smooth.spline(G9204.13$time, G9204.13$dFF, spar = .8)
+plot(G9204.13$time, G9204.13$dFF, type = "l", main = "Good Response: 9204.13")
+lines(predict(lowpass.spline.4, G9204.13$time), col = "green", lwd = 2)
+
+## Meh Response
+lowpass.spline.5 <- smooth.spline(G9204.11$time, G9204.11$dFF, spar = .8)
+plot(G9204.11$time, G9204.11$dFF, type = "l", main = "Meh Response: 9204.11")
+lines(predict(lowpass.spline.5, G9204.11$time), col = "green", lwd = 2)
+
+lowpass.spline.6 <- smooth.spline(G9202.12$time, G9202.12$dFF, spar = .8)
+plot(G9202.12$time, G9202.12$dFF, type = "l", main = "Meh Response: 9202.12")
+lines(predict(lowpass.spline.6, G9202.12$time), col = "green", lwd = 2)
+
+## Is it a response?
+lowpass.spline.7 <- smooth.spline(G9202.13$time, G9202.13$dFF, spar = .8)
+plot(G9202.13$time, G9202.13$dFF, type = "l", main = "Is it a response?: G9202.13")
+lines(predict(lowpass.spline.7, G9202.13$time), col = "green", lwd = 2)
+
+lowpass.spline.8 <- smooth.spline(G9203.31$time, G9203.31$dFF, spar = .8)
+plot(G9203.31$time, G9203.31$dFF, type = "l", main = "Is it a response?: G9203.31")
+lines(predict(lowpass.spline.8, G9203.31$time), col = "green", lwd = 2)
+
+## Early Response
+lowpass.spline.9 <- smooth.spline(G9202.33$time, G9202.33$dFF, spar = .8)
+plot(G9202.33$time, G9202.33$dFF, type = "l", main = "Early Response: G9202.33")
+lines(predict(lowpass.spline.9, G9202.33$time), col = "green", lwd = 2)
+
+lowpass.spline.10 <- smooth.spline(G9203.51$time, G9203.51$dFF, spar = .8)
+plot(G9203.51$time, G9203.51$dFF, type = "l", main = "Early Response: G9203.51")
+lines(predict(lowpass.spline.10, G9203.51$time), col = "green", lwd = 2)
+```
+
+Next Step: 4 paneled plots saved large for each example trial.  
+
+```{r}
+## No Response
+ss.1 <- ss(G9202.32$time, G9202.32$dFF, nknots = 15, m = 2)
+plot(G9202.32$time, G9202.32$dFF, type = "l", main = "No Response: 9202.32")
+lines(predict(ss.1, G9202.32$time), col = "green", lwd = 2)
+
+ss.2 <- ss(G9203.53$time, G9203.53$dFF, nknots = 15, m = 2)
+plot(G9203.53$time, G9203.53$dFF, type = "l", main = "No Response: 9203.53")
+lines(predict(ss.2, G9203.53$time), col = "green", lwd = 2)
+
+## Good Response
+ss.3 <- ss(G9202.31$time, G9202.31$dFF, nknots = 15, m = 2)
+plot(G9202.31$time, G9202.31$dFF, type = "l", main = "Good Response: 9202.31")
+lines(predict(ss.3, G9202.31$time), col = "green", lwd = 2)
+
+ss.4 <- ss(G9204.13$time, G9204.13$dFF, nknots = 15, m = 2)
+plot(G9204.13$time, G9204.13$dFF, type = "l", main = "Good Response: 9204.13")
+lines(predict(ss.4, G9204.13$time), col = "green", lwd = 2)
+
+## Meh Response
+ss.5 <- ss(G9204.11$time, G9204.11$dFF, nknots = 15, m = 2)
+plot(G9204.11$time, G9204.11$dFF, type = "l", main = "Meh Response: 9204.11")
+lines(predict(ss.5, G9204.11$time), col = "green", lwd = 2)
+
+ss.6 <- ss(G9202.12$time, G9202.12$dFF, nknots = 15, m = 2)
+plot(G9202.12$time, G9202.12$dFF, type = "l", main = "Meh Response: 9202.12")
+lines(predict(ss.6, G9202.12$time), col = "green", lwd = 2)
+
+## Is it a response?
+ss.7 <- ss(G9202.13$time, G9202.13$dFF, nknots = 15, m = 2)
+plot(G9202.13$time, G9202.13$dFF, type = "l", main = "Is it a response?: G9202.13")
+lines(predict(ss.7, G9202.13$time), col = "green", lwd = 2)
+
+ss.8 <- ss(G9203.31$time, G9203.31$dFF, nknots = 15, m = 2)
+plot(G9203.31$time, G9203.31$dFF, type = "l", main = "Is it a response?: G9203.31")
+lines(predict(ss.8, G9203.31$time), col = "green", lwd = 2)
+
+## Early Response
+ss.9 <- ss(G9202.33$time, G9202.33$dFF, nknots = 15, m = 2)
+plot(G9202.33$time, G9202.33$dFF, type = "l", main = "Early Response: G9202.33")
+lines(predict(ss.9, G9202.33$time), col = "green", lwd = 2)
+
+ss.10 <- ss(G9203.51$time, G9203.51$dFF, nknots = 15, m = 2)
+plot(G9203.51$time, G9203.51$dFF, type = "l", main = "Early Response: G9203.51")
+lines(predict(ss.10, G9203.51$time), col = "green", lwd = 2)
+```
+# Final decision
+
+Met with David and showed him results comparing Butter/Cheby/smooth.spline/ss and decided ss works the best.Next step is to get the lab's opinion and move on to criteria.
+
+Presenting to lab (with 0 lines):
+
+1. Overlay graph with one from each group (good response, meh response, questionable response, no response, and early response). Color coordinate.
+2. Plot each example individually with its own scale - find good response with low magnitude. 
+
+## Overlay graph
+
+```{r}
+ss.9202.32 <- ss(G9202.32$time, G9202.32$dFF, nknots = 15, m = 2)
+plot(G9202.32$time, G9202.32$dFF, type = "l", xlim = c(-8, 30), main = "No Response: 9202.32", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9202.32, G9202.32$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+
+ss.9203.53 <- ss(G9203.53$time, G9203.53$dFF, nknots = 15, m = 2)
+plot(G9203.53$time, G9203.53$dFF, type = "l", xlim = c(-8, 30), main = "No Response: 9203.53", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9202.53, G9203.53$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+
+ss.9202.31 <- ss(G9202.31$time, G9202.31$dFF, nknots = 15, m = 2)
+plot(G9202.31$time, G9202.31$dFF, type = "l", xlim = c(-8, 30), main = "Yes Response: 9202.31", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9202.31, G9202.31$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+
+ss.4 <- ss(G9204.13$time, G9204.13$dFF, nknots = 15, m = 2)
+plot(G9204.13$time, G9204.13$dFF, type = "l", xlim = c(-8, 30), main = "Yes Response: 9204.13", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.4, G9204.13$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+
+ss.9204.11 <- ss(G9204.11$time, G9204.11$dFF, nknots = 15, m = 2)
+plot(G9204.11$time, G9204.11$dFF, type = "l", xlim = c(-8, 30), main = "Questionable Response: 9204.11", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9204.11, G9204.11$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+
+ss.9202.12 <- ss(G9202.12$time, G9202.12$dFF, nknots = 15, m = 2)
+plot(G9202.12$time, G9202.12$dFF, type = "l", xlim = c(-8, 30), main = "Questionable Response: 9202.12", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9202.12, G9202.12$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+
+ss.9202.13 <- ss(G9202.13$time, G9202.13$dFF, nknots = 15, m = 2)
+plot(G9202.13$time, G9202.13$dFF, type = "l", xlim = c(-8, 30), main = "Questionable: G9202.13", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9202.13, G9202.13$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+
+ss.8 <- ss(G9203.31$time, G9203.31$dFF, nknots = 15, m = 2)
+plot(G9203.31$time, G9203.31$dFF, type = "l", xlim = c(-8, 30), main = "Questionable: G9203.31", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.8, G9203.31$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+
+ss.9 <- ss(G9202.33$time, G9202.33$dFF, nknots = 15, m = 2)
+plot(G9202.33$time, G9202.33$dFF, type = "l", xlim = c(-8, 30), main = "Early Response: G9202.33", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9, G9202.33$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+
+ss.10 <- ss(G9203.51$time, G9203.51$dFF, nknots = 15, m = 2)
+plot(G9203.51$time, G9203.51$dFF, type = "l", xlim = c(-8, 30), main = "Yes Response: G9203.51", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.10, G9203.51$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+```
+
+
+```{r}
+plot(G9202.32$time, G9202.32$dFF, type = "n", xlim = c(-8, 30), ylim = c(-0.5, 2), 
+     main = "Exploring GCaMP Response Variation", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.1, G9202.32$time), col = "blueviolet", lwd = 2)
+lines(predict(ss.4, G9204.13$time), col = "darkred", lwd = 2)
+lines(predict(ss.6, G9202.12$time), col = "chocolate2", lwd = 2)
+lines(predict(ss.8, G9203.31$time), col = "chartreuse4", lwd = 2)
+lines(predict(ss.10, G9203.51$time), col = "deepskyblue2", lwd = 2)
+legend("topright", 
+       legend = c("No Response: 9202.32", "Good Response: 9204.13", 
+                  "Poor Response: 9202.12", "Is it a response?: G9203.31", 
+                  "Early Response: G9203.51"),
+       fill = c("blueviolet", "darkred", "chocolate2", "chartreuse4", "deepskyblue2"))
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+```
+
+

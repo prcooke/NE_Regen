@@ -1,0 +1,17 @@
+id,Rtype,rawslope,filtslope,rawvar,filtvar,filtrange,,,Slope Notes:,,,,,,,,,,,,,Comparing slope to varience,
+9203.11,Exclude,0.012873703,0.008946392,0.001864138,0.000534816,0.086865277,,,Filtered slope better resembles data by eye,,,,,,,,,,,,,The fringe exluded cases are the same but the fringe included case is different.,
+9025.53,Include,0.011846648,0.01218687,0.007150623,0.001503297,0.112239658,,,Fringe cases are the same for both raw and filtered by filtered fits better,,,,,,,,,,,,,,9025.32 makes sense to exlucde (slope)
+9023.12,Include,0.004469999,0.001345073,0.013612795,0.001119018,0.123939404,,,9023.11 shows evidence of early puff in the first second but is flat all the way. Could potentially consider an include,,,,,,,,,,,,,,9022.13 doesn't make sense to exclude (varience)
+9023.13,Questionable,0.012867235,0.012042787,0.00647906,0.001103217,0.140966359,,,"9203.11 is strange - looking only at the baseline, I would consider this stable, but flourescence just slowly declines until 22s",,,,,,,,,,,,,,
+9022.13,Include,0.005611695,0.006338817,0.311825924,0.252884694,0.157206322,,,9025.12 is highly similar to 9203.11,,,,,,,,,,,,,,
+9023.11,Exclude,0.005685467,0.004409135,0.013906118,0.003471805,0.220571089,,,9025.32 has an unstable baseline resembling a spontaneous calcium transient during baseline,,,,,,,,,,,,,,
+9025.12,Exclude,0.021679531,0.019735007,0.006827663,0.002942872,0.239290202,,,,,,,,,,,,,,,,,
+9022.11,Include,0.011935793,0.010580301,0.014004453,0.003901399,0.242179086,,,,,,,,,,,,,,,,,
+9203.53,Questionable,0.026851429,0.030662833,0.011417851,0.006155017,0.264140207,,,Varience Notes:,,,,,,,,,,,,,,
+9023.33,Questionable,0.015054153,0.00555363,0.014337565,0.007690465,0.266901503,,,Fringe cases stay are the same filtered and raw but filtered groups them better.,,,,,,,,,,,,,,
+9025.32,Include,0.03274192,0.019768316,0.021969249,0.010394088,0.294061221,,,9023.11 shows evidence of early puff in the first second but is flat all the way. Could potentially consider an include,,,,,,,,,,,,,,
+9025.11,Exclude,0.037816096,0.04076238,0.026455546,0.011994887,0.321965597,,,"9203.11 is strange - looking only at the baseline, I would consider this stable, but flourescence just slowly declines until 22s",,,,,,,,,,,,,,
+9025.51,Questionable,0.085531562,0.077383752,0.058728727,0.040023491,0.532884426,,,9025.12 is highly similar to 9203.11,,,,,,,,,,,,,,
+9025.72,Exclude,0.077947705,0.083285543,0.042696217,0.045577192,0.750685798,,,9022.13 I'd want this included but it has a high varience in the baseline,,,,,,,,,,,,,,
+9203.14,Exclude,0.113196322,0.112202452,0.071563819,0.069346848,0.808349643,,,,,,,,,,,,,,,,,
+9025.13,Exclude,0.219015937,0.202112991,0.311825924,0.252884694,1.280857519,,,,,,,,,,,,,,,,,

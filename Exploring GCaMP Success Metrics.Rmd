@@ -1,0 +1,609 @@
+---
+title: "Exploring GCaMP Success Metrics"
+author: "Patrick"
+date: "2023-12-03"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Goal: determine a metric to assign a GCaMP response as a successful or failed response.
+
+Two methods: to try:
+
+1) Root mean squared deviation/error: quadratic mean of the differences between the observed values and predicted ones. Aggregates the magnitudes of the errors in predictions for various data points into a single measure of predictive power.
+
+- RMSE basically measures how far off an actual value is from the model's prediction for that value. 
+- Uses rmse() function from the Metrics package
+
+2) Z-Score:statistical measurement that describes a value's relationship to the mean of a group of values. Basically the number of standard deviations that the signal differs from the initial signal.
+- z score = (peak amplitude of response - mean of the population) / standard deviation of the population
+
+Do we use the raw data or smoothed data?
+
+Packages
+```{r}
+library(Metrics)
+library(data.table)
+library(dplyr)
+library(tidyverse)
+library(gsignal)
+library(npreg)
+```
+Objects for the smoothed data
+```{r}
+# No Response
+S9202.32 <- predict(ss.1, G9202.32$time)
+S9203.53 <- predict(ss.2, G9203.53$time)
+# Good Response
+S9202.31 <- predict(ss.3, G9202.31$time)
+S9204.13 <- predict(ss.4, G9204.13$time)
+# Poor Response
+S9204.11 <- predict(ss.5, G9204.11$time)
+S9202.12 <- predict(ss.6, G9202.12$time)
+# Questionable Response
+S9202.13 <- predict(ss.7, G9202.13$time)
+S9203.31 <- predict(ss.8, G9203.31$time)
+# Early Response
+S9202.33 <- predict(ss.9, G9202.33$time)
+S9203.51 <- predict(ss.10, G9203.51$time)
+```
+
+## Looking at RMSE
+
+Calculate the rmse values for the raw and filtered values
+```{r}
+# No Response
+rmse9202.32 <- rmse(G9202.32$dFF[51:200], G9202.32$dFF[11:50])
+s_rmse9202.32 <- rmse(S9202.32$y[51:200], S9202.32$y[11:50])
+
+rmse9203.53 <- rmse(G9203.53$dFF[51:200], G9203.53$dFF[11:50])
+s_rmse9203.53 <- rmse(S9203.53$y[51:200], S9203.53$y[11:50])
+# Good Response
+rmse9202.31 <- rmse(G9202.31$dFF[51:200], G9202.31$dFF[11:50])
+s_rmse9202.31 <- rmse(S9202.31$y[51:200], S9202.31$y[11:50])
+
+rmse9204.13 <- rmse(G9204.13$dFF[51:200], G9204.13$dFF[11:50])
+s_rmse9204.13 <- rmse(S9204.13$y[51:200], S9204.13$y[11:50])
+# Poor Response
+rmse9204.11 <- rmse(G9204.11$dFF[51:200], G9204.11$dFF[11:50])
+s_rmse9204.11 <- rmse(S9204.11$y[51:200], S9204.11$y[11:50])
+
+rmse9202.12 <- rmse(G9202.12$dFF[51:200], G9202.12$dFF[11:50])
+s_rmse9202.12 <- rmse(S9202.12$y[51:200], S9202.12$y[11:50])
+# Questionable
+rmse9202.13 <- rmse(G9202.13$dFF[51:200], G9202.13$dFF[11:50])
+s_rmse9202.13 <- rmse(S9202.13$y[51:200], S9202.13$y[11:50])
+
+rmse9203.31 <- rmse(G9203.31$dFF[51:200], G9203.31$dFF[11:50])
+s_rmse9203.31 <- rmse(S9203.31$y[51:200], S9203.31$y[11:50])
+# Early Response
+rmse9202.33 <- rmse(G9202.33$dFF[51:200], G9202.33$dFF[11:50])
+s_rmse9202.33 <- rmse(S9202.33$y[51:200], S9202.33$y[11:50])
+
+rmse9203.51 <- rmse(G9203.51$dFF[51:200], G9203.51$dFF[11:50])
+s_rmse9203.51 <- rmse(S9203.51$y[51:200], S9203.51$y[11:50])
+```
+
+Build a data frame for the rmse results comparing smooth data to raw data scores
+```{r}
+success_exp <- data.frame()
+success_exp[1:10, ] <- NA
+success_exp$id <- c(9202.32, 9203.53, 9202.31, 9204.13, 9204.11, 9202.12, 9202.13,
+                 9203.31, 9202.33, 9203.51)
+success_exp$Rtype <- c("No", "No", "Good", "Good", "Poor", "Poor", "Questionable",
+                       "Questionable", "Early", "Early")
+success_exp$rawrmse <- c(rmse9202.32, rmse9203.53, rmse9202.31, rmse9204.13, rmse9204.11,
+                       rmse9202.12, rmse9202.13, rmse9203.31, rmse9202.33, rmse9203.51)
+success_exp$smoothrmse <- c(s_rmse9202.32, s_rmse9203.53, s_rmse9202.31, s_rmse9204.13,
+                          s_rmse9204.11, s_rmse9202.12, s_rmse9202.13, s_rmse9203.31,
+                          s_rmse9202.33, s_rmse9203.51)
+success_exp
+```
+
+Impression: rawvrmse are always greater than smoothrmse. Values follow the assignments. Is it a response? values allign with no response
+
+# Adding Z Scores
+Peak amplitude of response is max value from 51:200
+standard deviation of population will be sd(11:50)
+
+Looking at Z Scores for No Response 9202.32
+```{r}
+max(G9202.32$dFF[51:200]) / sd(G9202.32$dFF[11:50])
+max(S9202.32$y[51:200]) / sd(S9202.32$y[11:50])
+max(G9202.32$dFF[51:200])
+sd(G9202.32$dFF[11:50])
+max(S9202.32$y[51:200])
+sd(S9202.32$y[11:50])
+```
+OK whats the zscore of the baseline?
+
+```{r}
+# NR 9202.32
+max(G9202.32$dFF[11:50]) / sd(G9202.32$dFF[11:50])
+max(S9202.32$y[11:50]) / sd(S9202.32$y[11:50])
+
+# NR 9203.53
+max(G9203.53$dFF[11:50]) / sd(G9203.53$dFF[11:50])
+max(S9203.53$y[11:50]) / sd(S9203.53$y[11:50])
+```
+
+
+```{r}
+# No Response
+z9202.32 <- max(G9202.32$dFF[51:200]) / sd(G9202.32$dFF[11:50])
+s_z9202.32 <- max(S9202.32$y[51:200]) / sd(S9202.32$y[11:50])
+
+z9203.53 <- max(G9203.53$dFF[51:200]) / sd(G9203.53$dFF[11:50])
+s_z9203.53 <- max(S9203.53$y[51:200]) / sd(S9203.53$y[11:50])
+# Good Response
+z9202.31 <- max(G9202.31$dFF[51:200]) / sd(G9202.31$dFF[11:50])
+s_z9202.31 <- max(S9202.31$y[51:200]) / sd(S9202.31$y[11:50])
+
+z9204.13 <- max(G9204.13$dFF[51:200]) / sd(G9204.13$dFF[11:50])
+s_z9204.13 <- max(S9204.13$y[51:200]) / sd(S9204.13$y[11:50])
+# Poor Response
+z9204.11 <- max(G9204.11$dFF[51:200]) / sd(G9204.11$dFF[11:50])
+s_z9204.11 <- max(S9204.11$y[51:200]) / sd(S9204.11$y[11:50])
+
+z9202.12 <- max(G9202.12$dFF[51:200]) / sd(G9202.12$dFF[11:50])
+s_z9202.12 <- max(S9202.12$y[51:200]) / sd(S9202.12$y[11:50])
+# Is it a response?
+z9202.13 <- max(G9202.13$dFF[51:200]) / sd(G9202.13$dFF[11:50])
+s_z9202.13 <- max(S9202.13$y[51:200]) / sd(S9202.13$y[11:50])
+
+z9203.31 <- max(G9203.31$dFF[51:200]) / sd(G9203.31$dFF[11:50])
+s_z9203.31 <- max(S9203.31$y[51:200]) / sd(S9203.31$y[11:50])
+# Early Response
+z9202.33 <- max(G9202.33$dFF[51:200]) / sd(G9202.33$dFF[11:50])
+s_z9202.33 <- max(S9202.33$y[51:200]) / sd(S9202.33$y[11:50])
+
+z9203.51 <- max(G9203.51$dFF[51:200]) / sd(G9203.51$dFF[11:50])
+s_z9203.51 <- max(S9203.51$y[51:200]) / sd(S9203.51$y[11:50])
+```
+
+Add the values into the table
+
+```{r}
+success_exp$rawz <- c(z9202.32, z9203.53, z9202.31, z9204.13, z9204.11,
+                       z9202.12, z9202.13, z9203.31, z9202.33, z9203.51)
+success_exp$smoothz <- c(s_z9202.32, s_z9203.53, s_z9202.31, s_z9204.13,
+                          s_z9204.11, s_z9202.12, s_z9202.13, s_z9203.31,
+                          s_z9202.33, s_z9203.51)
+success_exp <- success_exp[order(success_exp$rawz),]
+success_exp
+```
+Looks like both methods show promise.
+
+# Determining final criteria
+Lets add some more non-responses and responses to the mix that extends the spectrum and see how it works.
+
+Loading in additional responses
+No Response:
+9023 W1 P2
+9022 W1 P1
+9022 W1 P3
+9025 W5 P3
+
+Early
+9023 W1 P1
+9025 W7 P2
+
+Questionable
+9025 W3 P2
+
+Response
+9025 W1 P4 - poor/alright
+9023 W1 P3 - poor
+9023 W3 P3 - alright
+9022 W5 P1 - good
+9025 W5 P1 - alright/good
+9023 W5 P2 - poor/alright
+9025 W7 P3 - good
+9025 W7 P4 - alright
+
+```{r}
+## No Response
+file_path <- "./Functional_Noise_Proc/9023/W1/2.csv"
+G9023.12 <- dff(file_path)
+with(G9023.12, plot(time, dFF, type = "l"))
+
+file_path <- "./Functional_Noise_Proc/9022/W1/1.csv"
+G9022.11 <- dff(file_path)
+with(G9022.11, plot(time, dFF, type = "l"))
+
+file_path <- "./Functional_Noise_Proc/9022/W1/3.csv"
+G9022.13 <- dff(file_path)
+with(G9022.13, plot(time, dFF, type = "l"))
+
+file_path <- "./Functional_Noise_Proc/9025/W5/3.csv"
+G9025.53 <- dff(file_path)
+with(G9025.53, plot(time, dFF, type = "l"))
+
+## Early Response
+file_path <- "./Functional_Noise_Proc/9023/W1/1.csv"
+G9023.11 <- dff(file_path)
+with(G9023.11, plot(time, dFF, type = "l"))
+
+file_path <- "./Functional_Noise_Proc/9025/W7/2.csv"
+G9025.72 <- dff(file_path)
+with(G9025.72, plot(time, dFF, type = "l"))
+
+## Questionable Response
+file_path <- "./Functional_Noise_Proc/9025/W3/2.csv"
+G9025.32 <- dff(file_path)
+with(G9025.32, plot(time, dFF, type = "l"))
+
+file_path <- "./Functional_Noise_Proc/9023/W3/3.csv"
+G9023.33 <- dff(file_path)
+with(G9023.33, plot(time, dFF, type = "l"))
+
+## Responses
+file_path <- "./Functional_Noise_Proc/9025/W1/4.csv"
+G9025.14 <- dff(file_path)
+with(G9025.14, plot(time, dFF, type = "l"))
+
+file_path <- "./Functional_Noise_Proc/9023/W1/3.csv"
+G9023.13 <- dff(file_path)
+with(G9023.13, plot(time, dFF, type = "l"))
+
+file_path <- "./Functional_Noise_Proc/9022/W5/1.csv"
+G9022.51 <- dff(file_path)
+with(G9022.51, plot(time, dFF, type = "l"))
+
+file_path <- "./Functional_Noise_Proc/9025/W5/1.csv"
+G9025.51 <- dff(file_path)
+with(G9025.51, plot(time, dFF, type = "l"))
+
+file_path <- "./Functional_Noise_Proc/9023/W5/2.csv"
+G9023.52 <- dff(file_path)
+with(G9023.52, plot(time, dFF, type = "l"))
+
+file_path <- "./Functional_Noise_Proc/9025/W7/3.csv"
+G9025.73 <- dff(file_path)
+with(G9025.73, plot(time, dFF, type = "l"))
+
+file_path <- "./Functional_Noise_Proc/9025/W7/4.csv"
+G9025.74 <- dff(file_path)
+with(G9025.74, plot(time, dFF, type = "l"))
+```
+Get the smoothing lines
+
+```{r}
+## No Response
+ss.9023.12 <- ss(G9023.12$time, G9023.12$dFF, nknots = 15, m = 2)
+plot(G9023.12$time, G9023.12$dFF, type = "l", xlim = c(-8, 30), main = "No Response: G9023.12", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9023.12, G9023.12$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9023.12 <- predict(ss.9023.12, G9023.12$time)
+
+ss.9022.11 <- ss(G9022.11$time, G9022.11$dFF, nknots = 15, m = 2)
+plot(G9022.11$time, G9022.11$dFF, type = "l", xlim = c(-8, 30), main = "No Response: G9022.11", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9022.11, G9022.11$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9022.11 <- predict(ss.9022.11, G9022.11$time)
+
+ss <- ss(G9022.13$time, G9022.13$dFF, nknots = 15, m = 2)
+plot(G9022.13$time, G9022.13$dFF, type = "l", xlim = c(-8, 30), main = "No Response: G9022.13", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss, G9022.13$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9022.13 <- predict(ss, G9022.13$time)
+
+## Early Response
+ss <- ss(G9023.11$time, G9023.11$dFF, nknots = 15, m = 2)
+plot(G9023.11$time, G9023.11$dFF, type = "l", xlim = c(-8, 30), main = "Early Response: G9023.11", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss, G9023.11$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9023.11 <- predict(ss, G9023.11$time)
+
+ss <- ss(G9025.72$time, G9025.72$dFF, nknots = 15, m = 2)
+plot(G9025.72$time, G9025.72$dFF, type = "l", xlim = c(-8, 30), main = "Early Response: G9025.72", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss, G9025.72$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9025.72 <- predict(ss, G9025.72$time)
+
+## Questionable Response
+ss <- ss(G9025.32$time, G9025.32$dFF, nknots = 15, m = 2)
+plot(G9025.32$time, G9025.32$dFF, type = "l", xlim = c(-8, 30), main = "Questionable: G9025.32", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss, G9025.32$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9025.32 <- predict(ss, G9025.32$time)
+
+ss <- ss(G9023.33$time, G9023.33$dFF, nknots = 15, m = 2)
+plot(G9023.33$time, G9023.33$dFF, type = "l", xlim = c(-8, 30), main = "Questionable: G9023.33", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss, G9023.33$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9023.33 <- predict(ss, G9023.33$time)
+
+ss.9023.13 <- ss(G9023.13$time, G9023.13$dFF, nknots = 15, m = 2)
+plot(G9023.13$time, G9023.13$dFF, type = "l", xlim = c(-8, 30), main = "Questionable: G9023.13", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9023.13, G9023.13$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9023.13 <- predict(ss.9023.13, G9023.13$time)
+
+ss.9025.53 <- ss(G9025.53$time, G9025.53$dFF, nknots = 15, m = 2)
+plot(G9025.53$time, G9025.53$dFF, type = "l", xlim = c(-8, 30), main = "Questionable: G9025.53", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.53, G9025.53$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9025.53 <- predict(ss.9025.53, G9025.53$time)
+
+## Responses
+ss.9025.14 <- ss(G9025.14$time, G9025.14$dFF, nknots = 15, m = 2)
+plot(G9025.14$time, G9025.14$dFF, type = "l", xlim = c(-8, 30), main = "Yes Response: G9025.14", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.14, G9025.14$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9025.14 <- predict(ss.9025.14, G9025.14$time)
+
+ss <- ss(G9022.51$time, G9022.51$dFF, nknots = 15, m = 2)
+plot(G9022.51$time, G9022.51$dFF, type = "l", xlim = c(-8, 30), main = "Yes Response: G9022.51", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss, G9022.51$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9022.51 <- predict(ss, G9022.51$time)
+
+ss.9025.51 <- ss(G9025.51$time, G9025.51$dFF, nknots = 15, m = 2)
+plot(G9025.51$time, G9025.51$dFF, type = "l", xlim = c(-8, 30), main = "Yes Response: G9025.51", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.51, G9025.51$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9025.51 <- predict(ss.9025.51, G9025.51$time)
+
+ss <- ss(G9023.52$time, G9023.52$dFF, nknots = 15, m = 2)
+plot(G9023.52$time, G9023.52$dFF, type = "l", xlim = c(-8, 30), main = "Yes Response: G9023.52", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss, G9023.52$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9023.52 <- predict(ss, G9023.52$time)
+
+ss.9025.73 <- ss(G9025.73$time, G9025.73$dFF, nknots = 15, m = 2)
+plot(G9025.73$time, G9025.73$dFF, type = "l", xlim = c(-8, 30), main = "Yes Response: G9025.73", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.73, G9025.73$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9025.73 <- predict(ss.9025.73, G9025.73$time)
+
+ss.9025.74 <- ss(G9025.74$time, G9025.74$dFF, nknots = 15, m = 2)
+plot(G9025.74$time, G9025.74$dFF, type = "l", xlim = c(-8, 30), main = "Yes Response: G9025.74", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.74, G9025.74$time), col = "green", lwd = 2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+S9025.74 <- predict(ss.9025.74, G9025.74$time)
+```
+
+Calculate rmse for the raw and filtered values
+
+```{r}
+## No Response
+rmse9023.12 <- rmse(G9023.12$dFF[51:200], G9023.12$dFF[11:50])
+s_rmse9023.12 <- rmse(S9023.12$y[51:200], S9023.12$y[11:50])
+
+rmse9022.11 <- rmse(G9022.11$dFF[51:200], G9022.11 $dFF[11:50])
+s_rmse9022.11 <- rmse(S9022.11$y[51:200], S9022.11$y[11:50])
+
+rmse9022.13 <- rmse(G9022.13$dFF[51:200], G9022.13 $dFF[11:50])
+s_rmse9022.13 <- rmse(S9022.13$y[51:200], S9022.13$y[11:50])
+
+rmse9025.53 <- rmse(G9025.53$dFF[51:200], G9025.53 $dFF[11:50])
+s_rmse9025.53 <- rmse(S9025.53$y[51:200], S9025.53$y[11:50])
+
+## Early Response
+rmse9023.11 <- rmse(G9023.11$dFF[51:200], G9023.11 $dFF[11:50])
+s_rmse9023.11 <- rmse(S9023.11$y[51:200], S9023.11$y[11:50])
+
+rmse9025.72 <- rmse(G9025.72$dFF[51:200], G9025.72 $dFF[11:50])
+s_rmse9025.72 <- rmse(S9025.72$y[51:200], S9025.72$y[11:50])
+
+## Questionable Response
+rmse9025.32<- rmse(G9025.32$dFF[51:200], G9025.32 $dFF[11:50])
+s_rmse9025.32 <- rmse(S9025.32$y[51:200], S9025.32$y[11:50])
+
+rmse9023.33 <- rmse(G9023.33$dFF[51:200], G9023.33 $dFF[11:50])
+s_rmse9023.33 <- rmse(S9023.33$y[51:200], S9023.33$y[11:50])
+
+## Response
+rmse9025.14<- rmse(G9025.14$dFF[51:200], G9025.14 $dFF[11:50])
+s_rmse9025.14 <- rmse(S9025.14$y[51:200], S9025.14$y[11:50])
+
+rmse9023.13 <- rmse(G9023.13$dFF[51:200], G9023.13 $dFF[11:50])
+s_rmse9023.13 <- rmse(S9023.13$y[51:200], S9023.13$y[11:50])
+
+rmse9022.51 <- rmse(G9022.51$dFF[51:200], G9022.51 $dFF[11:50])
+s_rmse9022.51 <- rmse(S9022.51$y[51:200], S9022.51$y[11:50])
+
+rmse9025.51 <- rmse(G9025.51$dFF[51:200], G9025.51 $dFF[11:50])
+s_rmse9025.51 <- rmse(S9025.51$y[51:200], S9025.51$y[11:50])
+
+rmse9023.52 <- rmse(G9023.52$dFF[51:200], G9023.52 $dFF[11:50])
+s_rmse9023.52 <- rmse(S9023.52$y[51:200], S9023.52$y[11:50])
+
+rmse9025.73<- rmse(G9025.73$dFF[51:200], G9025.73 $dFF[11:50])
+s_rmse9025.73 <- rmse(S9025.73$y[51:200], S9025.73$y[11:50])
+
+rmse9025.74 <- rmse(G9025.74$dFF[51:200], G9025.74 $dFF[11:50])
+s_rmse9025.74 <- rmse(S9025.74$y[51:200], S9025.74$y[11:50])
+```
+
+Calculate Z-scores for raw and smoothed values
+
+```{r}
+# No Response
+z9023.12 <- max(G9023.12$dFF[51:200]) / sd(G9023.12$dFF[11:50])
+s_z9023.12 <- max(S9023.12$y[51:200]) / sd(S9023.12$y[11:50])
+
+z9022.11 <- max(G9022.11$dFF[51:200]) / sd(G9022.11$dFF[11:50])
+s_z9022.11 <- max(S9022.11$y[51:200]) / sd(S9022.11$y[11:50])
+
+z9022.13 <- max(G9022.13$dFF[51:200]) / sd(G9022.13$dFF[11:50])
+s_z9022.13 <- max(S9022.13$y[51:200]) / sd(S9022.13$y[11:50])
+
+z9025.53 <- max(G9025.53$dFF[51:200]) / sd(G9025.53$dFF[11:50])
+s_z9025.53 <- max(S9025.53$y[51:200]) / sd(S9025.53$y[11:50])
+
+# Early Response
+z9023.11 <- max(G9023.11$dFF[51:200]) / sd(G9023.11$dFF[11:50])
+s_z9023.11 <- max(S9023.11$y[51:200]) / sd(S9023.11$y[11:50])
+
+z9025.72 <- max(G9025.72$dFF[51:200]) / sd(G9025.72$dFF[11:50])
+s_z9025.72 <- max(S9025.72$y[51:200]) / sd(S9025.72$y[11:50])
+
+## Questionable Response
+z9025.32 <- max(G9025.32$dFF[51:200]) / sd(G9025.32$dFF[11:50])
+s_z9025.32 <- max(S9025.32$y[51:200]) / sd(S9025.32$y[11:50])
+
+z9023.33 <- max(G9023.33$dFF[51:200]) / sd(G9023.33$dFF[11:50])
+s_z9023.33 <- max(S9023.33$y[51:200]) / sd(S9023.33$y[11:50])
+
+# Responses
+z9025.14 <- max(G9025.14$dFF[51:200]) / sd(G9025.14$dFF[11:50])
+s_z9025.14 <- max(S9025.14$y[51:200]) / sd(S9025.14$y[11:50])
+
+z9023.13 <- max(G9023.13$dFF[51:200]) / sd(G9023.13$dFF[11:50])
+s_z9023.13 <- max(S9023.13$y[51:200]) / sd(S9023.13$y[11:50])
+
+z9022.51 <- max(G9022.51$dFF[51:200]) / sd(G9022.51$dFF[11:50])
+s_z9022.51 <- max(S9022.51$y[51:200]) / sd(S9022.51$y[11:50])
+
+z9025.51 <- max(G9025.51$dFF[51:200]) / sd(G9025.51$dFF[11:50])
+s_z9025.51 <- max(S9025.51$y[51:200]) / sd(S9025.51$y[11:50])
+
+z9023.52 <- max(G9023.52$dFF[51:200]) / sd(G9023.52$dFF[11:50])
+s_z9023.52 <- max(S9023.52$y[51:200]) / sd(S9023.52$y[11:50])
+
+z9025.73 <- max(G9025.73$dFF[51:200]) / sd(G9025.73$dFF[11:50])
+s_z9025.73 <- max(S9025.73$y[51:200]) / sd(S9025.73$y[11:50])
+
+z9025.74 <- max(G9025.74$dFF[51:200]) / sd(G9025.74$dFF[11:50])
+s_z9025.74 <- max(S9025.74$y[51:200]) / sd(S9025.74$y[11:50])
+```
+
+Next compile the new scores into the table and save the table as a CSV. Then save each new image with the green line.
+
+```{r}
+success_exp <- data.frame()
+success_exp[1:25, ] <- NA
+success_exp$id <- c(9202.32, 9203.53, 9202.31, 9204.13, 9204.11, 9202.12, 9202.13,
+                 9203.31, 9202.33, 9203.51, 9023.12, 9022.11, 9022.13, 9025.53, 
+                 9023.11, 9025.72, 9025.32, 9023.33, 9025.14, 9023.13, 9022.51, 
+                 9025.51, 9023.52, 9025.73, 9025.74)
+success_exp$Rtype <- c("No", "No", "Yes", "Yes", "Questionable", "Questionable", "Questionable",
+                       "Questionable", "Early", "Yes", "No", "No", "No", "Questionable",
+                       "Early", "Early", "Questionable", "Questionable", "Yes", 
+                       "Questionable", "Yes", "Yes", "Yes", "Yes", "Yes")
+success_exp$rawrmse <- c(rmse9202.32, rmse9203.53, rmse9202.31, rmse9204.13, rmse9204.11,
+                       rmse9202.12, rmse9202.13, rmse9203.31, rmse9202.33, rmse9203.51,
+                       rmse9023.12, rmse9022.11, rmse9022.13, rmse9025.53, rmse9023.11,
+                       rmse9025.72, rmse9025.32, rmse9023.33, rmse9025.14, rmse9023.13,
+                       rmse9022.51, rmse9025.51, rmse9023.52, rmse9025.73, rmse9025.74)
+success_exp$smoothrmse <- c(s_rmse9202.32, s_rmse9203.53, s_rmse9202.31, s_rmse9204.13,
+                          s_rmse9204.11, s_rmse9202.12, s_rmse9202.13, s_rmse9203.31,
+                          s_rmse9202.33, s_rmse9203.51, s_rmse9023.12, s_rmse9022.11, 
+                          s_rmse9022.13, s_rmse9025.53, s_rmse9023.11, s_rmse9025.72, 
+                          s_rmse9025.32, s_rmse9023.33, s_rmse9025.14, s_rmse9023.13, 
+                          s_rmse9022.51, s_rmse9025.51, s_rmse9023.52, s_rmse9025.73,
+                          s_rmse9025.74)
+success_exp$rawz <- c(z9202.32, z9203.53, z9202.31, z9204.13, z9204.11, z9202.12,
+                      z9202.13, z9203.31, z9202.33, z9203.51, z9023.12,
+                      z9022.11, z9022.13, z9025.53, z9023.11, z9025.72, z9025.32,
+                      z9023.33, z9025.14, z9023.13, z9022.51, z9025.51, z9023.52,
+                      z9025.73, z9025.74)
+success_exp$smoothz <- c(s_z9202.32, s_z9203.53, s_z9202.31, s_z9204.13, s_z9204.11,
+                         s_z9202.12, s_z9202.13, s_z9203.31, s_z9202.33, s_z9203.51,
+                         s_z9023.12, s_z9022.11, s_z9022.13, s_z9025.53, s_z9023.11,
+                         s_z9025.72, s_z9025.32, s_z9023.33, s_z9025.14, s_z9023.13,
+                         s_z9022.51,s_z9025.51, s_z9023.52, s_z9025.73, s_z9025.74)
+success_exp
+write.csv(success_exp, file = "./GCaMP_succ_criteria.csv", row.names = FALSE)
+```
+
+rmse and z score provide similar results - I think using z-score on the raw data makes the most sense based on how the data looks and because the calculation is more straightforward than rmse
+
+Where to put the success threshold?
+
+## Looking at fringe cases
+
+Fringe case: Questionable/No responses that are included. Yes responses that are excluded
+
+A threshold of 6 fits splits the data well - lets look at fringe cases using a threshold of 4, 6, and 8
+
+Threshold of 4:
+```{r}
+plot(G9202.32$time, G9202.32$dFF, type = "n", xlim = c(-8, 30), ylim = c(-0.5, 1.5), 
+     main = "Fringe Cases: Z-score = 4", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.73, G9025.73$time), col = "azure4", lwd = 2)
+lines(predict(ss.9023.12, G9023.12$time), col = "azure4", lwd = 2)
+lines(predict(ss.9204.11, G9204.11$time), col = "darkgoldenrod", lwd = 2)
+lines(predict(ss.9022.11, G9022.11$time), col = "deeppink", lwd = 2)
+lines(predict(ss.9202.32, G9202.32$time), col = "deeppink", lwd = 2)
+lines(predict(ss.9202.12, G9202.12$time), col = "darkgoldenrod", lwd = 2)
+lines(predict(ss.9203.53, G9203.53$time), col = "deeppink", lwd = 2)
+lines(predict(ss.9023.13, G9023.13$time), col = "darkgoldenrod", lwd = 2)
+lines(predict(ss.9025.53, G9025.53$time), col = "darkgoldenrod", lwd = 2)
+lines(predict(ss.9202.13, G9202.13$time), col = "darkgoldenrod", lwd = 2)
+legend("topright", 
+       legend = c("Yes Reference", "No Reference", 
+                  "Questionable: 9204.11", "No: 9022.11", "No: G9202.32",
+                  "Questionable: 9202.12", "No: 9203.53", "Questionable: 9023.13",
+                  "Questionable: 9025.53", "Questionable: 9202.13"),
+       fill = c("azure4", "azure4", "darkgoldenrod", "deeppink", "deeppink",
+                "darkgoldenrod", "deeppink", "darkgoldenrod", "darkgoldenrod", "darkgoldenrod"))
+legend("topleft", legend = c("Included", "Excluded"), lty = 1:2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+```
+
+Threshold of 6
+
+```{r}
+plot(G9202.32$time, G9202.32$dFF, type = "n", xlim = c(-8, 30), ylim = c(-0.5, 1.5), 
+     main = "Fringe Cases: Z-score = 6", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.73, G9025.73$time), col = "azure4", lwd = 2)
+lines(predict(ss.9023.12, G9023.12$time), col = "azure4", lwd = 2)
+lines(predict(ss.9025.53, G9025.53$time), col = "darkgoldenrod", lwd = 2)
+lines(predict(ss.9202.13, G9202.13$time), col = "darkgoldenrod", lwd = 2)
+lines(predict(ss.9203.53, G9203.53$time), col = "deeppink", lwd = 2)
+lines(predict(ss.9023.13, G9023.13$time), col = "darkgoldenrod", lwd = 2)
+lines(predict(ss.9025.51, G9025.51$time), col = "chartreuse4", lty = 2, lwd = 2)
+legend("topright", 
+       legend = c("Yes Reference", "No Reference", 
+                  "Questionable: 9025.53", "Questionable: 9202.13", 
+                  "No: G9203.53", "Questionable: 9023.13", "Yes: 9025.51"),
+       fill = c("azure4", "azure4", "darkgoldenrod", "darkgoldenrod", "deeppink",
+                "darkgoldenrod", "chartreuse4"))
+legend("topleft", legend = c("Included", "Excluded"), lty = 1:2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+```
+
+Threshold of 8
+
+```{r}
+plot(G9202.32$time, G9202.32$dFF, type = "n", xlim = c(-8, 30), ylim = c(-0.5, 1.5), 
+     main = "Fringe Cases: Z-score = 8", 
+     xlab = substitute(paste(bold('Time'))), ylab = substitute(paste(bold('dF/F'))))
+lines(predict(ss.9025.73, G9025.73$time), col = "azure4", lwd = 2)
+lines(predict(ss.9023.12, G9023.12$time), col = "azure4", lwd = 2)
+lines(predict(ss.9025.53, G9025.53$time), col = "darkgoldenrod", lwd = 2)
+lines(predict(ss.9025.51, G9025.51$time), col = "chartreuse4", lty = 2, lwd = 2)
+lines(predict(ss.9025.74, G9025.74$time), col = "chartreuse4", lty = 2, lwd = 2)
+lines(predict(ss.9025.14, G9025.14$time), col = "chartreuse4", lty = 2, lwd = 2)
+legend("topright", 
+       legend = c("Yes Reference", "No Reference","Questionable: 9025.53", "Yes: 9025.51", 
+                  "Yes: 9025.74", "Yes: 9025.14"),
+       fill = c("azure4", "azure4", "darkgoldenrod", "chartreuse4", "chartreuse4", "chartreuse4"))
+legend("topleft", legend = c("Included", "Excluded"), lty = 1:2)
+abline(a = 0, b = 0, h = 0, v = 0, lwd = 1)
+```
+
+Decided to go with a Z-score of 6 as our threshold for successful response - inclusive enough to capture some smaller or delayed responses that may occur as axons begin to regrow but not so inclusive that I'll miss classify a lot of failed responses.

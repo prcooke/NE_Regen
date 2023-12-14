@@ -1,0 +1,231 @@
+---
+title: "Axon Classification"
+author: "Patrick"
+date: "2023-12-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Summary
+
+Goal: Generate a pipeline for classifying axons as new, survived, or branched for each animal. Then merge it with structural_master_cut:
+
+* Class definitions;
+    - Survived: Axons present in W2 following DSP4 or saline treatment. Calculated by taking the summated surface area of all axon segments present in W2
+    - Branched: Axon branches from 'survived' axons. Calculated by subtracting the summated surface area of all axon segments whose center of mass lies within 5um of the center of a 'survived' segment from the summated surface area of all ibranched axon segments. ibranched axon segments are those whose center of mass lies within 5um of the center of mass of 'survived' axons + branched growth identified by eye.
+    - New: Axon growth originating from outside of the visible region. Calculated by subtracting the summatated surface area of all ibranched segments from the summated total of all axon segments in the area.
+    
+* 14 rows, one for each of data collection (-2 through 24)
+* Columns:
+    - segment.total.sa: total surface area of all axon segments
+    - norm.segment.total.sa: normalized total surface area of all axon segments
+    - new.sa: surface area of new axon growth
+    - norm.new.sa: normalized surface area of new axon growth
+    - survived.sa: surface area of survived axon
+    - norm.survived.sa: normalized surface area of survived axons
+    - branch.sa: surface area of axon growth branched from survived axons
+    - norm.branch.sa: normalized surface area of axon growth branched from survived axons
+
+# Writing a function that loads in the data for each animal calculates the information required and loads it into a data frame
+
+Currently the ibranched and survived csvs don't have area information in them, just distance between spots and surface IDs. We need to merge these with the surface area csvs based on the IDs and then delete all rows with NA in the 'Shortest Distance to Spots' column...or maybe if there is an NA at all
+
+```{r}
+# load test files 9022 W8 ibranched and Surfaces
+w8_9022_branch <- read.csv("./Axon Classification/9022/ibranched/W8.csv", skip = 3)
+w8_9022_branch
+w8_9022_surfaces <- read.csv("./Axon Classification/9022/Surfaces/W8.csv", skip = 3)
+w8_9022_surfaces
+```
+Join dataframes based on the ID column
+```{r}
+bound9022 <- merge(w8_9022_branch, w8_9022_surfaces, by = "ID")
+bound9022
+```
+
+Generate 4 functions. Each will generate a data frame with containing information for each week:
+
+1. segment.total_calc(): will calculate the total segmented surface area for each week
+2. survived_calc(): will calculate the total survived surface area for each week
+3. branch_calc(): will calculate the total branched surface area for each week
+4. new_calc(): will calculate the total new axon growth for each week. 
+
+## Total segmented surface area function
+```{r}
+# Input file path to subject folders for survived, branched, and all axon segments
+segment.total_calc <- function(surfaces_folder) {
+    # Retrieve list of all CSV files in the subject's folders
+    csv_files_surfaces <- list.files(surfaces_folder)
+
+    # Create a sequence of week numbers
+    week_numbers <- seq(-2, 24, by = 2)
+    
+    # Iterate over the 'surfaces' week numbers adding the data to the subject's data frame
+    for (week_number in week_numbers) {
+    # Check if the CSV file for the week exists in survived_folder
+        csv_file <- paste0("W", week_number, ".csv")
+        if (file.exists(file.path(surfaces_folder, csv_file))) {
+            # If the CSV file exists, load it
+            weekly_surfaces <- read.csv(file.path(surfaces_folder, csv_file), skip = 3)
+            
+            # Calculate the sum of the 'Area' column
+            segment.total_sa <- sum(weekly_surfaces$Area)
+            
+        } else {
+        # If the CSV file does not exist, fill in the total.sa value with NA
+            segment.total_sa <- NA
+        }
+        
+        # Add the week and total.sa values to the subject's data frame
+        subject_data <- rbind(subject_data, data.frame(week = week_number,
+                                                       segment.total.sa = segment.total_sa))
+    }
+    # Return the subject's data frame
+    return(subject_data)
+}
+```
+
+
+```{r}
+subject_data <- data.frame()
+# Input the correct file path
+survived_folder <- "./Axon Classification/9022/W2_spotcomp"
+ibranched_folder <- "./Axon Classification/9022/ibranched"
+surfaces_folder <- "./Axon Classification/9022/Surfaces"
+subject_data <- segment.total_calc(surfaces_folder)
+subject_data
+```  
+
+Looks good. Onto the next
+
+## Survived function
+```{r}
+survived_calc <- function(survived_folder, surfaces_folder) {
+    # Retrieve list of all CSV files in the subject's folders
+    csv_files_survived <- list.files(survived_folder)
+    csv_files_surfaces <- list.files(surfaces_folder)
+
+    # Create a sequence of week numbers
+    week_numbers <- seq(-2, 24, by = 2)
+
+    # Iterate over the 'survived' week numbers adding the data to the subject's data frame
+    for (week_number in week_numbers) {
+    # Check if the CSV file for the week exists in survived_folder
+        csv_file <- paste0("W", week_number, ".csv")
+        if (file.exists(file.path(survived_folder, csv_file))) {
+            # If the CSV file exists, load it
+            weekly_survived <- read.csv(file.path(survived_folder, csv_file), skip = 3)
+            weekly_surfaces <- read.csv(file.path(surfaces_folder, csv_file), skip = 3)
+            weekly_survived <- merge(weekly_survived, weekly_surfaces, by = "ID")
+            
+            # Calculate the sum of the 'Area' column
+            survived_sa <- sum(weekly_survived$Area)
+            
+        } else {
+        # If the CSV file does not exist, fill in the total.sa value with NA
+            survived_sa <- NA
+        }
+        
+        # Add the week and total.sa values to the subject's data frame
+        subject_data <- rbind(subject_data, data.frame(week = week_number,
+                                                       survived.sa = survived_sa))
+        
+    }
+    
+    # Return the subject's data frame
+    return(subject_data)
+}
+```
+   
+   Why is this coming up the same as segment.total_calc??
+   
+```{r}
+subject_data <- data.frame()
+# Input the correct file path
+survived_folder <- "./Axon Classification/9022/W2_spotcomp"
+ibranched_folder <- "./Axon Classification/9022/ibranched"
+surfaces_folder <- "./Axon Classification/9022/Surfaces"
+subject_data <- survived_calc(survived_folder, surfaces_folder)
+subject_data
+```  
+   
+   
+    # Generate branch.sa column
+    # Iterate over the 'ibranched' week numbers adding the data to the subject's data frame
+    for (week_number in week_numbers) {
+    # Check if the CSV file for the week exists in ibranched_folder
+        csv_file <- paste0("W", week_number, ".csv")
+        if (file.exists(file.path(ibranched_folder, csv_file))) {
+            # If the CSV file exists, load it and area info
+            weekly_ibranched <- read.csv(file.path(ibranched_folder, csv_file), skip = 3)
+            weekly_surfaces <- read.csv(file.path(surfaces_folder, csv_file), skip = 3)
+            # Merge ibranched and area info by ID number
+            weekly_ibranched <- merge(weekly_ibranched, weekly_surfaces, by = "ID")
+            
+            # Load in survived data
+            weekly_survived <- read.csv(file.path(survived_folder, csv_file), skip = 3)
+            weekly_survived <- merge(weekly_survived, weekly_surfaces, by = "ID")
+       
+            # Calculate the sum of the 'Area' column
+            ibranched_sa <- sum(weekly_ibranched$Area)
+            survived_sa <- sum(weekly_survived$Area)
+            ibranched_sa <- ibranched_sa - survived_sa
+            
+        } else {
+        # If the CSV file does not exist, fill in the total.sa value with NA
+            ibranched_sa <- NA
+        }
+        
+        # Add the week and total.sa values to the subject's data frame
+        subject_data$branch.sa <- ibranched_sa
+    }
+    
+    # Generate new.sa column
+    # Iterate over the 'surfaces' week numbers adding the data to the subject's data frame
+    for (week_number in week_numbers) {
+    # Check if the CSV file for the week exists in surfaces_folder
+        csv_file <- paste0("W", week_number, ".csv")
+        if (file.exists(file.path(surfaces_folder, csv_file))) {
+            # If the CSV file exists, load it
+            weekly_surfaces <- read.csv(file.path(surfaces_folder, csv_file), skip = 3)
+            
+            # Load in ibranched data and merge in area info
+            weekly_ibranched <- read.csv(file.path(ibranched_folder, csv_file), skip = 3)
+            weekly_ibranched <- merge(weekly_ibranched, weekly_surfaces, by = "ID")
+          
+            # Calculate the sum of the 'Area' column
+            new_sa <- sum(weekly_surfaces$Area)
+            new_sa <- new_sa - ibranched_sa
+            
+        } else {
+        # If the CSV file does not exist, fill in the total.sa value with NA
+            new_sa <- NA
+        }
+        
+        # Add the week and total.sa values to the subject's data frame
+        subject_data$new.sa <- new_sa
+    }
+    
+    # Iterate over the week numbers and calculate the normalized surface area
+    for (i in 1:14) {
+        subject_data$norm.branch.sa <- subject_data$surfaces_sa / subject_data$segment.total.sa
+        subject_data$norm.survived.sa <- subject_data$surfaces_sa / subject_data$segment.total.sa
+        subject_data$norm.new.sa <- subject_data$surfaces_sa / subject_data$segment.total.sa
+    }
+    
+    # Return the subject's data frame
+    return(subject_data)
+}
+
+Lets test it out on 9022
+
+
+```{r}
+week_number <- "W-2.csv"
+csv_file <- paste0("W", week_number, ".csv")
+file.exists(file.path(ibranched_folder, csv_file))
+```
+

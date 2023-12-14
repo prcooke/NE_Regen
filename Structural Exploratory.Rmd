@@ -1,0 +1,56 @@
+---
+title: "Structural Exploratory Data"
+author: "Patrick"
+date: "2023-11-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(plotrix)
+```
+```{r}
+names(structural_master)
+```
+
+```{r}
+ave__treatment <- structural_master %>% group_by(treatment, week) %>% 
+    summarise(mean_treat = mean(norm.total.sa, na.rm = TRUE))
+ave__treatment
+```
+
+```{r eval = FALSE}
+ave__treatment%>%
+    ggplot(aes(x = week, y = mean_treat, color = treatment)) +
+    geom_point() + 
+    geom_line() +
+    theme_minimal() + 
+    ylab("Normalized Axon Surface Area")
+```
+
+```{r}
+ave__treatment_cut <- structural_master_cut %>% group_by(treatment, week) %>% 
+    summarise(mean_treat = mean(norm.total.sa, na.rm = TRUE), 
+              se_treat = std.error(norm.total.sa, na.rm = TRUE),
+              n = sum(!is.na(norm.total.sa)))
+ave__treatment_cut
+```
+
+```{r}
+ave__treatment_cut %>%
+    ggplot(aes(x = week, y = mean_treat, color = treatment)) +
+    geom_point() + 
+    geom_line() +
+    geom_linerange(aes(ymin = mean_treat - se_treat, ymax = mean_treat + se_treat)) +
+    geom_label(aes(label = paste0(n)), hjust = 1.2, vjust = 1) +
+    theme_minimal() + 
+    scale_x_continuous(breaks = seq(-2, 22, by = 2)) +
+    ylab("Normalized Axon Surface Area") +
+    ggtitle("Norepienphrine Axons Regrow After Chemical Lesion")
+```
+
+

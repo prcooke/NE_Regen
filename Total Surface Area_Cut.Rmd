@@ -1,0 +1,236 @@
+---
+title: "Total Surface Area Cut"
+author: "Patrick"
+date: "2023-11-06"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(data.table)
+library(dplyr)
+```
+
+Same as Total Surface Area (see RMD file for details) however excluding weeks where ROI is clearly impacted by window degradation.
+
+## 9035
+Excluded W16
+```{r}
+subject_data <- data.frame()
+# Input the correct file path
+subject_folder <- "./Total Surface Area Cut/9035"
+subject_data <- SA_calc(subject_folder)
+# Change object name
+A9035_cut <- data.frame()
+# Change object name
+A9035_cut[1:14, ] <- NA
+# Modify animal according to subject number
+animal <- rep("9035", times = 14)
+# Assign sex
+sex <- rep("M", times = 14)
+# Assign group
+group.id <- rep(1, times = 14)
+# Function, TRUE or FALSE?
+functional <- rep(FALSE, times = 14)
+week <- seq(-2, 24, by = 2)
+treatment <- rep("treatment", times = 14)
+control <- rep("control", times = 14)
+# Change object name
+A9035_cut$animal <- as.factor(animal)
+# Change object name
+A9035_cut$sex <- as.factor(sex)
+# Change object name
+A9035_cut$group.id <- as.factor(group.id)
+# Change object name
+A9035_cut$functional <- functional
+# Change object name
+A9035_cut$week <- week
+# Change object name and input treatment/control
+A9035_cut$treatment <- as.factor(control)
+# Change object name TWICE
+A9035_cut <- full_join(A9035_cut, subject_data, by = "week", copy = TRUE)
+# Change object name
+A9035_cut
+```
+
+## 9060
+Excluded Entirely
+
+## 9071
+Excluded W12 and W14
+```{r}
+subject_data <- data.frame()
+# Input the correct file path
+subject_folder <- "./Total Surface Area Cut/9071"
+subject_data <- SA_calc(subject_folder)
+# Change object name
+A9071_cut <- data.frame()
+# Change object name
+A9071_cut[1:14, ] <- NA
+# Modify animal according to subject number
+animal <- rep("9071", times = 14)
+# Assign sex
+sex <- rep("F", times = 14)
+# Assign group
+group.id <- rep(5, times = 14)
+# Functional, TRUE or FALSE?
+functional <- rep(FALSE, times = 14)
+week <- seq(-2, 24, by = 2)
+treatment <- rep("treatment", times = 14)
+control <- rep("control", times = 14)
+# Change object name
+A9071_cut$animal <- as.factor(animal)
+# Change object name
+A9071_cut$sex <- as.factor(sex)
+# Change object name
+A9071_cut$group.id <- as.factor(group.id)
+# Change object name
+A9071_cut$functional <- functional
+# Change object name
+A9071_cut$week <- week
+# Change object name and input treatment/control
+A9071_cut$treatment <- as.factor(control)
+# Change object name TWICE
+A9071_cut <- full_join(A9071_cut, subject_data, by = "week", copy = TRUE)
+# Change object name
+A9071_cut
+```
+
+## 9072
+Excluded W22
+```{r}
+subject_data <- data.frame()
+# Input the correct file path
+subject_folder <- "./Total Surface Area Cut/9072"
+subject_data <- SA_calc(subject_folder)
+# Change object name
+A9072_cut <- data.frame()
+# Change object name
+A9072_cut[1:14, ] <- NA
+# Modify animal according to subject number
+animal <- rep("9072", times = 14)
+# Assign sex
+sex <- rep("M", times = 14)
+# Assign group
+group.id <- rep(5, times = 14)
+# Functional, TRUE or FALSE?
+functional <- rep(TRUE, times = 14)
+week <- seq(-2, 24, by = 2)
+treatment <- rep("treatment", times = 14)
+control <- rep("control", times = 14)
+# Change object name
+A9072_cut$animal <- as.factor(animal)
+# Change object name
+A9072_cut$sex <- as.factor(sex)
+# Change object name
+A9072_cut$group.id <- as.factor(group.id)
+# Change object name
+A9072_cut$functional <- functional
+# Change object name
+A9072_cut$week <- week
+# Change object name and input treatment/control
+A9072_cut$treatment <- as.factor(control)
+# Change object name TWICE
+A9072_cut <- full_join(A9072_cut, subject_data, by = "week", copy = TRUE)
+# Change object name
+A9072_cut
+```
+
+## 9203
+Excluding W14
+```{r}
+subject_data <- data.frame()
+# Input the correct file path
+subject_folder <- "./Total Surface Area cut/9203"
+subject_data <- SA_calc(subject_folder)
+# Change object name
+A9203_cut <- data.frame()
+# Change object name
+A9203_cut[1:14, ] <- NA
+# Modify animal according to subject number
+animal <- rep("9203", times = 14)
+# Assign sex
+sex <- rep("F", times = 14)
+# Assign group
+group.id <- rep(3, times = 14)
+# Functional, TRUE or FALSE?
+functional <- rep(TRUE, times = 14)
+week <- seq(-2, 24, by = 2)
+treatment <- rep("treatment", times = 14)
+control <- rep("control", times = 14)
+# Change object name
+A9203_cut$animal <- as.factor(animal)
+# Change object name
+A9203_cut$sex <- as.factor(sex)
+# Change object name
+A9203_cut$group.id <- as.factor(group.id)
+# Change object name
+A9203_cut$functional <- functional
+# Change object name
+A9203_cut$week <- week
+# Change object name and input treatment/control
+A9203_cut$treatment <- as.factor(control)
+# Change object name TWICE
+A9203_cut <- full_join(A9203_cut, subject_data, by = "week", copy = TRUE)
+# Change object name
+A9203_cut
+```
+
+## 9213
+Excluded W10 and W12
+```{r}
+subject_data <- data.frame()
+# Input the correct file path
+subject_folder <- "./Total Surface Area Cut/9213"
+subject_data <- SA_calc(subject_folder)
+# Change object name
+A9213_cut <- data.frame()
+# Change object name
+A9213_cut[1:14, ] <- NA
+# Modify animal according to subject number
+animal <- rep("9213", times = 14)
+# Assign sex
+sex <- rep("F", times = 14)
+# Assign group
+group.id <- rep(6, times = 14)
+# Functional, TRUE or FALSE?
+functional <- rep(TRUE, times = 14)
+week <- seq(-2, 24, by = 2)
+treatment <- rep("treatment", times = 14)
+control <- rep("control", times = 14)
+# Change object name
+A9213_cut$animal <- as.factor(animal)
+# Change object name
+A9213_cut$sex <- as.factor(sex)
+# Change object name
+A9213_cut$group.id <- as.factor(group.id)
+# Change object name
+A9213_cut$functional <- functional
+# Change object name
+A9213_cut$week <- week
+# Change object name and input treatment/control
+A9213_cut$treatment <- as.factor(treatment)
+# Change object name TWICE
+A9213_cut <- full_join(A9213_cut, subject_data, by = "week", copy = TRUE)
+# Change object name
+A9213_cut
+```
+
+# Final step: merge all data frames together
+
+```{r}
+# list of all the data frames to be combined
+structural_master_cut <- rbind.data.frame(A9022, A9023, A9025, A9026, A9031, A9035_cut,
+                    A9058, A9062, A9067,
+                    A9068, A9071_cut, A9072_cut, A9073,
+                    A9202, A9203_cut, A9204,
+                    A9211, A9212, A9213_cut)
+structural_master_cut
+```
+
+
+
+
